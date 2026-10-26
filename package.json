@@ -5,6 +5,7 @@
   "author": "Morgan Rodgers",
   "description": "Julia language support for Pulsar via the JETLS language server",
   "keywords": [],
+  "atomTestRunner": "atom-jasmine3-test-runner",
   "repository": "https://github.com/mjrodgers/pulsar-ide-julia",
   "license": "MIT",
   "engines": {

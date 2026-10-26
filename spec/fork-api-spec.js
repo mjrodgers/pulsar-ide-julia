@@ -2,16 +2,18 @@
 // relies on (verified against its auto-languageclient.ts / languageclient.ts).
 const path = require("path");
 const { activateJulia } = require("./helpers/activate");
+
 const fixtures = path.join(__dirname, "fixtures");
 const fakeServer = path.join(fixtures, "fake-server.js");
+const SLOW = 20000;
 
 describe("atom-languageclient fork API", () => {
   let client;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     atom.project.setPaths([fixtures]);
-    waitsForPromise({ timeout: 20000 }, () => activateJulia().then((mainModule) => { client = mainModule; }));
-  });
+    client = await activateJulia();
+  }, SLOW);
 
   for (const name of [
     "restartAllServers", "spawn", "spawnChildNode", "getInitializeParams",
@@ -26,15 +28,11 @@ describe("atom-languageclient fork API", () => {
     expect(params.capabilities.workspace.configuration).toBe(true);
   });
 
-  it("the live connection has onWorkspaceConfiguration()", () => {
-    let connection;
-    runs(() => {
-      spyOn(client, "startServerProcess").andCallFake((projectPath) =>
-        client.spawnChildNode([fakeServer], { cwd: projectPath }));
-    });
-    waitsForPromise({ timeout: 20000 }, () => atom.workspace.open(path.join(fixtures, "hello.jl")));
-    waitsForPromise({ timeout: 20000 }, () => client.getConnectionForEditor(atom.workspace.getActiveTextEditor())
-      .then((c) => { connection = c; }));
-    runs(() => expect(typeof connection.onWorkspaceConfiguration).toBe("function"));
-  });
+  it("the live connection has onWorkspaceConfiguration()", async () => {
+    spyOn(client, "startServerProcess").and.callFake((projectPath) =>
+      client.spawnChildNode([fakeServer], { cwd: projectPath }));
+    await atom.workspace.open(path.join(fixtures, "hello.jl"));
+    const connection = await client.getConnectionForEditor(atom.workspace.getActiveTextEditor());
+    expect(typeof connection.onWorkspaceConfiguration).toBe("function");
+  }, SLOW);
 });

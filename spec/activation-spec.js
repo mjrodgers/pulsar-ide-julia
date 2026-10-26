@@ -1,71 +1,69 @@
-// Activates the package against a fake server (no Julia needed).
+// Activates the package against a fake server (no Julia needed). Jasmine 2 style.
 // `startServerProcess` is stubbed AFTER activation and BEFORE a file is opened.
-const fs = require("fs");
-const os = require("os");
 const path = require("path");
 const { activateJulia } = require("./helpers/activate");
+const { deferred } = require("./helpers/deferred");
+
 const fixtures = path.join(__dirname, "fixtures");
 const fakeServer = path.join(fixtures, "fake-server.js");
+const SLOW = 20000;
 
 describe("activation", () => {
   let client;
 
-  beforeEach(() => {
+  const useFakeServer = () =>
+    spyOn(client, "startServerProcess").and.callFake((projectPath) =>
+      client.spawnChildNode([fakeServer], { cwd: projectPath }));
+
+  beforeEach(async () => {
     atom.project.setPaths([fixtures]);
-    waitsForPromise({ timeout: 20000 }, () => activateJulia().then((mainModule) => { client = mainModule; }));
-  });
+    client = await activateJulia();
+  }, SLOW);
 
   it("registers the restart command", () => {
     const names = atom.commands.findCommands({ target: atom.views.getView(atom.workspace) }).map((c) => c.name);
     expect(names).toContain("pulsar-ide-julia:restart-language-server");
   });
 
-  it("starts a server for the project when a .jl file opens", () => {
-    let startedFor = null;
-    runs(() => {
-      spyOn(client, "startServerProcess").andCallFake((projectPath) => {
-        startedFor = projectPath;
-        return client.spawnChildNode([fakeServer], { cwd: projectPath });
-      });
+  it("starts a server for the project when a .jl file opens", async () => {
+    const started = deferred();
+    spyOn(client, "startServerProcess").and.callFake((projectPath) => {
+      started.resolve(projectPath);
+      return client.spawnChildNode([fakeServer], { cwd: projectPath });
     });
-    waitsForPromise({ timeout: 20000 }, () => atom.workspace.open(path.join(fixtures, "hello.jl")));
-    waitsFor(() => startedFor, "language server to start", 10000);
-    runs(() => expect(startedFor).toBe(fixtures));
-  });
+    await atom.workspace.open(path.join(fixtures, "hello.jl"));
+    expect(await started.promise).toBe(fixtures);
+  }, SLOW);
 
-  it("answers the server's workspace/configuration request from Pulsar settings", () => {
-    const log = path.join(os.tmpdir(), `fake-jetls-config-${process.pid}.json`);
-    runs(() => {
-      try { fs.unlinkSync(log); } catch (e) { /* not there */ }
-      atom.config.set("pulsar-ide-julia.formatter", "JuliaFormatter");
-      atom.config.set("pulsar-ide-julia.debounce", 2.5);
-      spyOn(client, "startServerProcess").andCallFake((projectPath) =>
-        client.spawnChildNode([fakeServer], {
-          cwd: projectPath,
-          env: Object.assign({}, process.env, { FAKE_SERVER_LOG: log }),
-        }));
-    });
-    waitsForPromise({ timeout: 20000 }, () => atom.workspace.open(path.join(fixtures, "hello.jl")));
-    waitsFor(() => fs.existsSync(log), "server to receive our configuration answer", 10000);
-    runs(() => {
-      const [settings] = JSON.parse(fs.readFileSync(log, "utf8"));
-      expect(settings).toEqual({ full_analysis: { debounce: 2.5 }, formatter: "JuliaFormatter" });
-    });
-  });
+  it("answers the server's workspace/configuration request from Pulsar settings", async () => {
+    atom.config.set("pulsar-ide-julia.formatter", "JuliaFormatter");
+    atom.config.set("pulsar-ide-julia.debounce", 2.5);
 
-  it("resolves workspace/configuration sections from Pulsar settings", () => {
-    let result;
-    runs(() => {
-      atom.config.set("pulsar-ide-julia.formatter", "JuliaFormatter");
-      client.getWorkspaceConfiguration({ items: [{ section: "jetls" }, { section: "jetls.formatter" }, { section: "other" }] })
-        .then((r) => { result = r; });
+    // The fork registers `this.getWorkspaceConfiguration.bind(this)` when a server
+    // starts, so a spy installed beforehand sees the fake server's request.
+    const answered = deferred();
+    const original = client.getWorkspaceConfiguration.bind(client);
+    spyOn(client, "getWorkspaceConfiguration").and.callFake(async (params) => {
+      const result = await original(params);
+      answered.resolve({ params, result });
+      return result;
     });
-    waitsFor(() => result, "configuration result", 2000);
-    runs(() => {
-      expect(result[0]).toEqual({ formatter: "JuliaFormatter" });
-      expect(result[1]).toBe("JuliaFormatter");
-      expect(result[2]).toBeUndefined();
+    useFakeServer();
+
+    await atom.workspace.open(path.join(fixtures, "hello.jl"));
+    const { params, result } = await answered.promise;
+    expect(params.items[0].section).toBe("jetls");
+    expect(result).toEqual([{ full_analysis: { debounce: 2.5 }, formatter: "JuliaFormatter" }]);
+  }, SLOW);
+
+  it("resolves workspace/configuration sections from Pulsar settings", async () => {
+    atom.config.set("pulsar-ide-julia.formatter", "JuliaFormatter");
+    const result = await client.getWorkspaceConfiguration({
+      items: [{ section: "jetls" }, { section: "jetls.formatter" }, { section: "other" }],
     });
+    expect(result[0]).toEqual({ formatter: "JuliaFormatter" });
+    expect(result[1]).toBe("JuliaFormatter");
+    expect(result[2]).toBeUndefined();
   });
 
   it("advertises workspace.configuration support", () => {

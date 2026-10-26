@@ -5,23 +5,26 @@ const path = require("path");
 const { spawn } = require("child_process");
 const { pathToFileURL } = require("url");
 const { encode, createParser } = require("./helpers/rpc");
+const { deferred } = require("./helpers/deferred");
 const { resolveJetls, buildArgs } = require("../lib/launch");
 
 const fixtures = path.join(__dirname, "fixtures");
 const suite = process.env.JETLS_INTEGRATION ? describe : xdescribe;
+const VERY_SLOW = 180000;
 
 suite("real JETLS", () => {
-  let child, spawnError, init, configRequest;
+  let child, init, configRequest;
   const write = (m) => child.stdin.write(encode({ jsonrpc: "2.0", ...m }));
 
   beforeEach(() => {
-    init = configRequest = spawnError = undefined;
+    init = deferred();
+    configRequest = deferred();
     child = spawn(resolveJetls({}), buildArgs({ threads: "auto" }), { cwd: fixtures });
-    child.on("error", (e) => { spawnError = e.message; });
+    child.on("error", (e) => { init.reject(e); configRequest.reject(e); });
     child.stdout.on("data", createParser((msg) => {
-      if (msg.id === 1 && msg.method === undefined) { init = msg; return; }
+      if (msg.id === 1 && msg.method === undefined) { init.resolve(msg); return; }
       if (msg.method === "workspace/configuration") {
-        configRequest = msg;
+        configRequest.resolve(msg);
         write({ id: msg.id, result: msg.params.items.map(() => ({ formatter: "JuliaFormatter" })) });
         return;
       }
@@ -39,23 +42,17 @@ suite("real JETLS", () => {
 
   afterEach(() => { if (child) child.kill(); });
 
-  it("answers `initialize` with capabilities", () => {
-    waitsFor(() => init || spawnError, "initialize response", 180000);
-    runs(() => {
-      expect(spawnError).toBeUndefined();
-      expect(init.result.capabilities).toBeDefined();
-    });
-  });
+  it("answers `initialize` with capabilities", async () => {
+    const response = await init.promise;
+    expect(response.result.capabilities).toBeDefined();
+  }, VERY_SLOW);
 
-  it("pulls `workspace/configuration` for the \"jetls\" section", () => {
-    waitsFor(() => init || spawnError, "initialize response", 180000);
-    runs(() => {
-      expect(spawnError).toBeUndefined();
-      write({ method: "initialized", params: {} });
-      // Mirrors main.js, which pushes a notification whenever settings change.
-      write({ method: "workspace/didChangeConfiguration", params: { settings: { jetls: {} } } });
-    });
-    waitsFor(() => configRequest, "JETLS to request workspace/configuration", 60000);
-    runs(() => expect(configRequest.params.items[0].section).toBe("jetls"));
-  });
+  it('pulls `workspace/configuration` for the "jetls" section', async () => {
+    await init.promise;
+    write({ method: "initialized", params: {} });
+    // Mirrors the fork, which pushes a notification whenever settings change.
+    write({ method: "workspace/didChangeConfiguration", params: { settings: { jetls: {} } } });
+    const request = await configRequest.promise;
+    expect(request.params.items[0].section).toBe("jetls");
+  }, VERY_SLOW);
 });
