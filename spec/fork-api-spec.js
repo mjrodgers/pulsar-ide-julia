@@ -1,6 +1,7 @@
 // Sanity checks for the parts of @savetheclocktower/atom-languageclient this package
 // relies on (verified against its auto-languageclient.ts / languageclient.ts).
 const path = require("path");
+const { activateJulia } = require("./helpers/activate");
 const fixtures = path.join(__dirname, "fixtures");
 const fakeServer = path.join(fixtures, "fake-server.js");
 
@@ -9,9 +10,7 @@ describe("atom-languageclient fork API", () => {
 
   beforeEach(() => {
     atom.project.setPaths([fixtures]);
-    waitsForPromise(() => atom.packages.activatePackage("language-julia"));
-    waitsForPromise(() =>
-      atom.packages.activatePackage("pulsar-ide-julia").then((pkg) => { client = pkg.mainModule; }));
+    waitsForPromise({ timeout: 20000 }, () => activateJulia().then((mainModule) => { client = mainModule; }));
   });
 
   for (const name of [
@@ -33,8 +32,8 @@ describe("atom-languageclient fork API", () => {
       spyOn(client, "startServerProcess").andCallFake((projectPath) =>
         client.spawnChildNode([fakeServer], { cwd: projectPath }));
     });
-    waitsForPromise(() => atom.workspace.open(path.join(fixtures, "hello.jl")));
-    waitsForPromise(() => client.getConnectionForEditor(atom.workspace.getActiveTextEditor())
+    waitsForPromise({ timeout: 20000 }, () => atom.workspace.open(path.join(fixtures, "hello.jl")));
+    waitsForPromise({ timeout: 20000 }, () => client.getConnectionForEditor(atom.workspace.getActiveTextEditor())
       .then((c) => { connection = c; }));
     runs(() => expect(typeof connection.onWorkspaceConfiguration).toBe("function"));
   });

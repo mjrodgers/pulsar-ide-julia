@@ -12,6 +12,7 @@ using `@savetheclocktower/atom-languageclient`.
     npm install            # or `ppm install`
     ppm link               # make Pulsar see the package (once)
     pulsar --test spec     # run the specs (Linux CI: wrap in xvfb-run)
+                           # specs are self-contained: a stub grammar fixture stands in for language-julia
     JETLS_INTEGRATION=1 pulsar --test spec   # also test against a real jetls
 
 ## Settings and JETLS configuration
@@ -33,3 +34,12 @@ extra Julia flags) are static: changing them offers a server restart.
 
 `jetls` is a Pkg app: it runs with the Julia that installed it. To run it with another Julia
 (1.12+), set **Julia executable**; the package passes it as `JULIA_APPS_JULIA_CMD`.
+
+## Installing JETLS
+
+`jetls` is a Julia "app": a small launcher in `~/.julia/bin` that runs JETLS with the Julia that installed it.
+
+    julia -e 'using Pkg; Pkg.Apps.add(; url="https://github.com/aviatesk/JETLS.jl", rev="release")'
+    ~/.julia/bin/jetls --version
+
+Needs Julia 1.12+ (1.12.2+ recommended). This package also looks in `~/.julia/bin` itself, so `PATH` need not be set.

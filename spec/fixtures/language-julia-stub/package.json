@@ -1,0 +1,5 @@
+{
+  "name": "language-julia-stub",
+  "version": "0.0.0",
+  "description": "Test-only stand-in that registers the source.julia grammar scope, so specs don't depend on a user-installed language-julia."
+}

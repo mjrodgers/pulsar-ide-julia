@@ -25,7 +25,7 @@
     "source.julia"
   ],
   "dependencies": {
-    "@savetheclocktower/atom-languageclient": "^1.17.21"
+    "@savetheclocktower/atom-languageclient": "^1.18.0"
   },
   "configSchema": {
     "jetlsPath": {

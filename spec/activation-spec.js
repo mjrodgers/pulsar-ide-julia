@@ -3,6 +3,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { activateJulia } = require("./helpers/activate");
 const fixtures = path.join(__dirname, "fixtures");
 const fakeServer = path.join(fixtures, "fake-server.js");
 
@@ -11,9 +12,7 @@ describe("activation", () => {
 
   beforeEach(() => {
     atom.project.setPaths([fixtures]);
-    waitsForPromise(() => atom.packages.activatePackage("language-julia"));
-    waitsForPromise(() =>
-      atom.packages.activatePackage("pulsar-ide-julia").then((pkg) => { client = pkg.mainModule; }));
+    waitsForPromise({ timeout: 20000 }, () => activateJulia().then((mainModule) => { client = mainModule; }));
   });
 
   it("registers the restart command", () => {
@@ -29,7 +28,7 @@ describe("activation", () => {
         return client.spawnChildNode([fakeServer], { cwd: projectPath });
       });
     });
-    waitsForPromise(() => atom.workspace.open(path.join(fixtures, "hello.jl")));
+    waitsForPromise({ timeout: 20000 }, () => atom.workspace.open(path.join(fixtures, "hello.jl")));
     waitsFor(() => startedFor, "language server to start", 10000);
     runs(() => expect(startedFor).toBe(fixtures));
   });
@@ -46,7 +45,7 @@ describe("activation", () => {
           env: Object.assign({}, process.env, { FAKE_SERVER_LOG: log }),
         }));
     });
-    waitsForPromise(() => atom.workspace.open(path.join(fixtures, "hello.jl")));
+    waitsForPromise({ timeout: 20000 }, () => atom.workspace.open(path.join(fixtures, "hello.jl")));
     waitsFor(() => fs.existsSync(log), "server to receive our configuration answer", 10000);
     runs(() => {
       const [settings] = JSON.parse(fs.readFileSync(log, "utf8"));

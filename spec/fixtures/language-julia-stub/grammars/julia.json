@@ -1,0 +1,6 @@
+{
+  "name": "Julia (test stub)",
+  "scopeName": "source.julia",
+  "fileTypes": ["jl"],
+  "patterns": []
+}
