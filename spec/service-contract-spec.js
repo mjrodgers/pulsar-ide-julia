@@ -23,3 +23,10 @@ describe("service contract", () => {
     expect(client.getGrammarScopes()).toEqual(["source.julia"]);
   });
 });
+
+describe("activation hook", () => {
+  it("matches the hook the specs trigger", () => {
+    const { ACTIVATION_HOOK } = require("./helpers/activate");
+    expect(pkg.activationHooks).toContain(ACTIVATION_HOOK);
+  });
+});
