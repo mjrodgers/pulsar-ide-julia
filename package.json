@@ -1,103 +1,200 @@
 {
   "name": "pulsar-ide-julia",
-  "main": "./src/main",
+  "main": "./lib/main",
   "version": "0.0.1",
   "author": "Morgan Rodgers",
-  "description": "A Pulsar-native IDE package for Julia, based on Juno and the Julia LSP",
+  "description": "Julia language support for Pulsar via the JETLS language server",
   "keywords": [],
   "repository": "https://github.com/mjrodgers/pulsar-ide-julia",
   "license": "MIT",
   "engines": {
-    "atom": ">=1.0.0 <2.0.0"
+    "atom": ">=1.131.0 <2.0.0"
   },
-  "activationCommands": {
-    "atom-workspace": [
-      "pulsar-ide-julia:start-language-server"
-    ]
+  "scripts": {
+    "test": "pulsar --test spec"
   },
   "activationHooks": [
-    "source.jl:root-scope-used"
+    "source.julia:root-scope-used"
+  ],
+  "activationCommands": {
+    "atom-workspace": [
+      "pulsar-ide-julia:restart-language-server"
+    ]
+  },
+  "enhancedScopes": [
+    "source.julia"
   ],
   "dependencies": {
-    "@savetheclocktower/atom-languageclient": "^1.17.6"
+    "@savetheclocktower/atom-languageclient": "^1.17.21"
+  },
+  "configSchema": {
+    "jetlsPath": {
+      "order": 1,
+      "title": "Path to jetls",
+      "type": "string",
+      "default": "jetls",
+      "description": "Leave as `jetls` to use the PATH, falling back to `<julia depot>/bin/jetls`. Set an absolute path to override."
+    },
+    "juliaPath": {
+      "title": "Julia executable",
+      "type": "string",
+      "default": "",
+      "description": "Optional. Sets `JULIA_APPS_JULIA_CMD` for the server, so `jetls` runs with this Julia instead of the one that installed it. Must be Julia 1.12 or newer. Leave empty to use the installing Julia.",
+      "order": 2
+    },
+    "threads": {
+      "order": 3,
+      "title": "Julia threads",
+      "type": "string",
+      "default": "auto",
+      "description": "Passed as `--threads=` to Julia. Use `auto`, a number, or `4,2` (default,interactive). Empty = Julia's default."
+    },
+    "defaultEnvironment": {
+      "order": 4,
+      "title": "Default environment",
+      "type": "string",
+      "default": "",
+      "description": "Passed as `--project=`. Only affects files with no `Project.toml` above them (standalone scripts). Files inside a project always use that project's environment. Accepts a path, `~/path`, or `@name` for a shared environment."
+    },
+    "juliaFlags": {
+      "order": 5,
+      "title": "Extra Julia flags",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Comma-separated Julia runtime flags placed before `--`, e.g. `--heap-size-hint=4G`."
+    },
+    "autoInstantiate": {
+      "order": 6,
+      "title": "Auto-instantiate environments",
+      "type": "string",
+      "default": "prompt",
+      "enum": [
+        "prompt",
+        "always",
+        "never"
+      ],
+      "description": "What JETLS does when a project's environment isn't instantiated. `prompt` asks first (once per environment per session); `always` may download packages and modify `Manifest.toml`. Maps to `full_analysis.auto_instantiate`. Takes effect without a restart."
+    },
+    "debounce": {
+      "order": 7,
+      "title": "Analysis debounce (seconds)",
+      "type": "number",
+      "default": 1,
+      "minimum": 0,
+      "description": "Wait this long after a save before re-running full analysis (`full_analysis.debounce`)."
+    },
+    "formatter": {
+      "order": 8,
+      "title": "Formatter",
+      "type": "string",
+      "default": "Runic",
+      "enum": [
+        "Runic",
+        "JuliaFormatter"
+      ],
+      "description": "Which formatter JETLS uses (`formatter`). For a custom formatter use the JSON field below."
+    },
+    "settingsJson": {
+      "order": 9,
+      "title": "Additional JETLS settings (JSON)",
+      "type": "string",
+      "default": "{}",
+      "description": "A JSON object in the shape of `.JETLSConfig.toml`, merged over the settings above. Example: `{\"diagnostic\": {\"patterns\": [{\"pattern\": \"lowering/unused-argument\", \"match_by\": \"code\", \"match_type\": \"literal\", \"severity\": \"off\"}]}}`. A project's `.JETLSConfig.toml` still takes precedence."
+    },
+    "initializationOptionsJson": {
+      "order": 10,
+      "title": "Initialization options (JSON)",
+      "type": "string",
+      "default": "{}",
+      "description": "Static JETLS options sent once at startup, e.g. `{\"n_analysis_workers\": 2}`. Changing this needs a server restart."
+    }
   },
   "consumedServices": {
-   "linter-indie": {
-     "versions": {
-       "2.0.0": "consumeLinterV2"
-     }
-   },
-   "datatip": {
-     "versions": {
-       "0.1.0": "consumeDatatip"
-     }
-   },
-   "signature-help": {
-     "versions": {
-       "0.1.0": "consumeSignatureHelp"
-     }
-   }
- },
- "providedServices": {
-   "intentions:list": {
-     "versions": {
-       "1.0.0": "provideIntentionsList"
-     }
-   },
-   "symbol.provider": {
-     "description": "Allows external sources to suggest symbols for a given file or project.",
-     "versions": {
-       "1.0.0": "provideSymbols"
-     }
-   },
-   "autocomplete.provider": {
-     "versions": {
-       "4.0.0": "provideAutocomplete"
-     }
-   },
-   "code-actions": {
-     "versions": {
-       "0.1.0": "provideCodeActions"
-     }
-   },
-   "code-format.range": {
-     "versions": {
-       "0.1.0": "provideCodeFormat"
-     }
-   },
-   "call-hierarchy": {
-     "versions": {
-       "0.1.0": "provideCallHierarchy"
-     }
-   },
-   "code-highlight": {
-     "versions": {
-       "0.1.0": "provideCodeHighlight"
-     }
-   },
-   "definitions": {
-     "versions": {
-       "0.1.0": "provideDefinitions"
-     }
-   },
-   "find-references": {
-     "versions": {
-       "0.1.0": "provideFindReferences"
-     }
-   },
-   "outline-view": {
-     "versions": {
-       "0.1.0": "provideOutlines"
-     }
-   },
-   "refactor": {
-     "versions": {
-       "0.1.0": "provideRefactor",
-       "0.2.0": "provideRefactorWithPrepare"
-     }
-   }
- },
- "devDependencies": {
-   "eslint": "^8.45.0"
- }
+    "linter-indie": {
+      "versions": {
+        "2.0.0": "consumeLinterV2"
+      }
+    },
+    "datatip": {
+      "versions": {
+        "0.1.0": "consumeDatatip"
+      }
+    },
+    "signature-help": {
+      "versions": {
+        "0.1.0": "consumeSignatureHelp"
+      }
+    },
+    "atom-ide-busy-signal": {
+      "versions": {
+        "0.1.0": "consumeBusySignal"
+      }
+    }
+  },
+  "providedServices": {
+    "autocomplete.provider": {
+      "versions": {
+        "5.1.0": "provideAutocomplete"
+      }
+    },
+    "intentions:list": {
+      "versions": {
+        "1.0.0": "provideIntentionsList"
+      }
+    },
+    "symbol.provider": {
+      "versions": {
+        "1.0.0": "provideSymbols"
+      }
+    },
+    "code-actions": {
+      "versions": {
+        "0.1.0": "provideCodeActions"
+      }
+    },
+    "code-format.range": {
+      "versions": {
+        "0.1.0": "provideRangeCodeFormat"
+      }
+    },
+    "code-highlight": {
+      "versions": {
+        "0.1.0": "provideCodeHighlight"
+      }
+    },
+    "definitions": {
+      "versions": {
+        "0.1.0": "provideDefinitions"
+      }
+    },
+    "find-references": {
+      "versions": {
+        "0.1.0": "provideFindReferences"
+      }
+    },
+    "outline-view": {
+      "versions": {
+        "0.1.0": "provideOutlines"
+      }
+    },
+    "hover": {
+      "versions": {
+        "0.1.0": "provideHover"
+      }
+    },
+    "signature": {
+      "versions": {
+        "0.1.0": "provideSignature"
+      }
+    },
+    "refactor": {
+      "versions": {
+        "0.1.0": "provideRefactor",
+        "0.2.0": "provideRefactorWithPrepare"
+      }
+    }
+  }
 }
