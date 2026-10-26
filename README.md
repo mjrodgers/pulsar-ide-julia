@@ -1,23 +1,35 @@
-# atom-ide-template-js
+# pulsar-ide-julia
 
-This is a template for atom-ide-community packages using JavaScript. It is recommended to use [the TypeScript template](https://github.com/atom-ide-community/atom-ide-template) instead.
+This is 1000% vibe coded, I know enough to point in the right direction and maintain this package,
+but frankly my knowledge of javascript is super limited and I just wanted to get a Julia language server up and running.
+Please report issues, I'm happy to work to improve this and keep it up and running.
 
-Use `Ctrl+Shift+F` and replace `atom-ide-template-js` with `atom-ide-packagename`. Then put your name in the license section and author section.
+Julia language support for Pulsar via [JETLS](https://github.com/aviatesk/JETLS.jl),
+using `@savetheclocktower/atom-languageclient`.
 
-![Build Status (Github Actions)](https://github.com/atom-ide-community/atom-ide-template-js/workflows/CI/badge.svg)
-[![Dependency Status](https://david-dm.org/atom-ide-community/atom-ide-template-js.svg)](https://david-dm.org/atom-ide-community/atom-ide-template-js)
-[![apm](https://img.shields.io/apm/dm/atom-ide-template-js.svg)](https://github.com/atom-ide-community/atom-ide-template-js)
-[![apm](https://img.shields.io/apm/v/atom-ide-template-js.svg)](https://github.com/atom-ide-community/atom-ide-template-js)
+## Develop
 
-## Features
+    npm install            # or `ppm install`
+    ppm link               # make Pulsar see the package (once)
+    pulsar --test spec     # run the specs (Linux CI: wrap in xvfb-run)
+    JETLS_INTEGRATION=1 pulsar --test spec   # also test against a real jetls
 
--
+## Settings and JETLS configuration
 
-## Usage
+Configuration reaches JETLS three ways (highest priority first):
 
-## Roadmap
+1. `.JETLSConfig.toml` in the project root (read by JETLS itself; per root, committable).
+2. Pulsar settings: the package opts in to the fork's built-in `workspace/configuration` support
+   (`supportsWorkspaceConfiguration`, `getRootConfigurationKey`, `mapConfigurationObject`),
+   so JETLS's request for the `jetls` section is answered from these settings. First-class settings (auto-instantiate, debounce, formatter) are sent only
+   when they differ from JETLS's defaults; **Additional JETLS settings (JSON)** is merged on top.
+   These apply live.
+3. JETLS defaults.
 
-## Contributing
+**Initialization options (JSON)** and the launch settings (path, threads, default environment,
+extra Julia flags) are static: changing them offers a server restart.
 
-- Let me know if you encounter any bugs.
-- Feature requests are always welcome.
+## Choosing the Julia version
+
+`jetls` is a Pkg app: it runs with the Julia that installed it. To run it with another Julia
+(1.12+), set **Julia executable**; the package passes it as `JULIA_APPS_JULIA_CMD`.
