@@ -21,7 +21,26 @@
   "activationCommands": {
     "atom-workspace": [
       "pulsar-ide-julia:restart-language-server",
-      "pulsar-ide-julia:dump-document-symbols"
+      "pulsar-ide-julia:dump-document-symbols",
+      "pulsar-ide-julia:open-repl",
+      "pulsar-ide-julia:send-selection-or-definition",
+      "pulsar-ide-julia:send-cell",
+      "pulsar-ide-julia:send-cell-and-advance",
+      "pulsar-ide-julia:send-file",
+      "pulsar-ide-julia:activate-environment",
+      "pulsar-ide-julia:next-cell",
+      "pulsar-ide-julia:previous-cell",
+      "pulsar-ide-julia:debug-start-or-continue",
+      "pulsar-ide-julia:debug-file",
+      "pulsar-ide-julia:debug-continue",
+      "pulsar-ide-julia:debug-step-over",
+      "pulsar-ide-julia:debug-step-in",
+      "pulsar-ide-julia:debug-step-out",
+      "pulsar-ide-julia:debug-stop",
+      "pulsar-ide-julia:toggle-breakpoint",
+      "pulsar-ide-julia:clear-breakpoints",
+      "pulsar-ide-julia:open-workspace",
+      "pulsar-ide-julia:show-debug-output"
     ]
   },
   "enhancedScopes": [
@@ -138,6 +157,146 @@
       "type": "boolean",
       "default": false,
       "description": "Also list each function's arguments, local variables and loop blocks in the outline view. Off keeps the outline to functions, types and top-level definitions."
+    },
+    "replJuliaPath": {
+      "title": "REPL: Julia executable",
+      "type": "string",
+      "default": "",
+      "description": "Julia to start in the terminal REPL. Empty uses `julia` from the terminal's PATH (so juliaup channels work).",
+      "order": 14
+    },
+    "replThreads": {
+      "title": "REPL: threads",
+      "type": "string",
+      "default": "",
+      "description": "Value for `--threads` (a number or `auto`). Empty leaves Julia's default.",
+      "order": 15
+    },
+    "replEnvironment": {
+      "title": "REPL: environment",
+      "type": "string",
+      "default": "",
+      "description": "Empty starts the REPL in the active file's project (nearest Project.toml, if any). Or give a directory, or `@.` / `@v1.12` / `@name`.",
+      "order": 16
+    },
+    "replFlags": {
+      "title": "REPL: extra Julia arguments",
+      "type": "string",
+      "default": "",
+      "description": "Appended to the command as written, e.g. `-e 'using Revise'` (`-i` is added automatically so the REPL stays open) or `--color=yes`.",
+      "order": 17
+    },
+    "replSendVia": {
+      "title": "REPL: how to send code",
+      "type": "string",
+      "default": "service",
+      "enum": [
+        {
+          "value": "service",
+          "description": "Terminal service: documented API, but the terminal package may ask you to approve the commands"
+        },
+        {
+          "value": "command",
+          "description": "Select the code and use the terminal package's run-selected-text command (no approval prompt)"
+        }
+      ],
+      "description": "How code reaches the terminal. Starting the REPL always uses the terminal service.",
+      "order": 18
+    },
+    "replBracketedPaste": {
+      "title": "REPL: send as a bracketed paste",
+      "type": "boolean",
+      "default": false,
+      "description": "Wrap multi-line code in bracketed-paste markers so the Julia REPL takes it as a single paste. Try this if multi-line blocks misbehave. Only applies to the terminal service.",
+      "order": 19
+    },
+    "debugJuliaPath": {
+      "title": "Debugger: Julia path",
+      "type": "string",
+      "default": "",
+      "description": "Julia executable that runs the debug adapter and your program. Empty uses `julia` from the PATH.",
+      "order": 20
+    },
+    "debugEnvironment": {
+      "title": "Debugger: environment",
+      "type": "string",
+      "default": "",
+      "description": "Empty: the project of the file being debugged (nearest Project.toml). Or `@v1.12`, `@name`, or a directory. DebugAdapter itself must be installed in the default global environment.",
+      "order": 21
+    },
+    "debugThreads": {
+      "title": "Debugger: threads",
+      "type": "string",
+      "default": "",
+      "description": "Passed as `--threads=`. Empty uses Julia's default.",
+      "order": 22
+    },
+    "debugFlags": {
+      "title": "Debugger: extra Julia arguments",
+      "type": "string",
+      "default": "",
+      "description": "Added to the Julia command line, e.g. `--check-bounds=yes`.",
+      "order": 23
+    },
+    "debugStopOnEntry": {
+      "title": "Debugger: stop on entry",
+      "type": "boolean",
+      "default": false,
+      "description": "Pause at the first line when you start debugging, even without breakpoints. Interpreted debugging is slow, so this is off by default.",
+      "order": 24
+    },
+    "debugLaunchArgumentsJson": {
+      "title": "Debugger: extra launch arguments (JSON)",
+      "type": "string",
+      "default": "",
+      "description": "A JSON object merged into the `launch` request, e.g. `{\"args\": [\"--n\", \"3\"]}`. A field set to `null` is removed. By default only `program` and `stopOnEntry` are sent.",
+      "order": 25
+    },
+    "debugExceptionFilters": {
+      "title": "Debugger: break on exceptions",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "description": "Exception breakpoint filter ids offered by the adapter (the debug output lists them after a session starts), e.g. `error`.",
+      "order": 26
+    },
+    "debugOpenWorkspace": {
+      "title": "Debugger: open the workspace pane when debugging starts",
+      "type": "boolean",
+      "default": true,
+      "order": 27
+    },
+    "debugOpenOutput": {
+      "title": "Debugger: open the output pane when the program prints",
+      "type": "boolean",
+      "default": true,
+      "order": 28
+    },
+    "debugProgramArguments": {
+      "title": "Debugger: program arguments",
+      "type": "string",
+      "default": "",
+      "description": "Command-line arguments for the debugged script (`ARGS`), split like a shell would, e.g. `--n 3 \"a b\"`.",
+      "order": 29
+    },
+    "debugCompiledMode": {
+      "title": "Debugger: compiled mode",
+      "type": "boolean",
+      "default": false,
+      "description": "Run code that is not being stepped through compiled instead of interpreted. Much faster, but you cannot step into or break inside it. Use with the modules/functions setting below.",
+      "order": 30
+    },
+    "debugCompiledModules": {
+      "title": "Debugger: compiled modules or functions",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "description": "Modules or functions to run compiled, e.g. `Base`, `LinearAlgebra`. Passed as `compiledModulesOrFunctions`.",
+      "order": 31
     }
   },
   "consumedServices": {
@@ -159,6 +318,16 @@
     "atom-ide-busy-signal": {
       "versions": {
         "0.1.0": "consumeBusySignal"
+      }
+    },
+    "terminal": {
+      "versions": {
+        "^2.0.0": "consumeTerminal"
+      }
+    },
+    "platformioIDETerminal": {
+      "versions": {
+        "^1.0.0": "consumeLegacyTerminal"
       }
     }
   },
@@ -225,4 +394,4 @@
       }
     }
   }
-}
+  }

@@ -23,12 +23,23 @@ const waitUntil = async (predicate, what, ms = 8000) => {
 };
 
 describe("debugger", () => {
-  let client, server, children;
+  let client, server, children, host;
 
   useTimeout(30000);
 
   const workspacePane = () => atom.workspace.getPaneItems().find((i) => i.getURI && i.getURI() === WORKSPACE_URI);
   const stopped = () => client.debug.session && client.debug.session.state.status === "stopped" && !client.debug.session.state.loading && client.debug.session.state.contexts.length > 0;
+
+  // Commands dispatched on an editor only reach the handlers registered on the workspace if the workspace is in
+  // the document; the spec window does not attach it by default.
+  const attachWorkspace = () => {
+    const element = atom.views.getView(atom.workspace);
+    if (element.isConnected) return;
+    host = document.createElement("div");
+    host.style.cssText = "position:fixed;left:0;top:0;width:900px;height:600px";
+    document.body.appendChild(host);
+    host.appendChild(element);
+  };
 
   beforeEach(reportErrors(async () => {
     atom.project.setPaths([fixtures]);
@@ -44,11 +55,13 @@ describe("debugger", () => {
       return { socket: await server.connect(), child };
     };
     atom.config.set("pulsar-ide-julia.debugStopOnEntry", true);
+    attachWorkspace();
   }));
 
   afterEach(reportErrors(async () => {
     if (client && client.debug) await client.debug.stop();
     if (server) await server.close();
+    if (host) { host.remove(); host = null; }
   }));
 
   it("registers its commands and keys", reportErrors(async () => {
