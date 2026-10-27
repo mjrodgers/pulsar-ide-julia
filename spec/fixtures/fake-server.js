@@ -1,13 +1,31 @@
 // A tiny stand-in for JETLS so specs run without Julia installed.
-// After `initialized` it pulls `workspace/configuration` like JETLS does, and if
-// FAKE_SERVER_LOG is set it writes the client's answer there for specs to inspect.
+//  * Speaks LSP over stdio, or over a socket when started with `--pipe-connect=<path>`.
+//  * After `initialized` it pulls `workspace/configuration` like JETLS does, and if
+//    FAKE_SERVER_LOG is set it writes the client's answer there.
+//  * With FAKE_SERVER_NOISE set it prints non-LSP text to stdout before every message,
+//    like a package banner would. Harmless over a pipe, fatal over stdio.
 const fs = require("fs");
+const net = require("net");
 const { encode, createParser } = require("../helpers/rpc");
 
-const send = (m) => process.stdout.write(encode({ jsonrpc: "2.0", ...m }));
+const pipeArg = process.argv.slice(2).find((a) => a.startsWith("--pipe-connect="));
+let input = process.stdin;
+let output = process.stdout;
+if (pipeArg) {
+  const socket = net.connect(pipeArg.slice("--pipe-connect=".length));
+  input = socket;
+  output = socket;
+}
+
+const NOISE = !!process.env.FAKE_SERVER_NOISE;
 const CONFIG_REQUEST_ID = "fake-config-1";
 
-process.stdin.on("data", createParser((msg) => {
+const send = (m) => {
+  if (NOISE) process.stdout.write("fake-package 1.2.3: loading... (this is not LSP)\n");
+  output.write(encode({ jsonrpc: "2.0", ...m }));
+};
+
+input.on("data", createParser((msg) => {
   if (msg.id === CONFIG_REQUEST_ID && msg.method === undefined) { // response to our request
     if (process.env.FAKE_SERVER_LOG) fs.writeFileSync(process.env.FAKE_SERVER_LOG, JSON.stringify(msg.result));
     return;

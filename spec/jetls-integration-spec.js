@@ -58,3 +58,28 @@ suite("real JETLS", () => {
     expect(request.params.items[0].section).toBe("jetls");
   });
 });
+
+// Real JETLS over `--pipe-connect`, the transport the package uses by default.
+suite("real JETLS over a pipe", () => {
+  const { connectViaPipe } = require("../lib/channel");
+  let child, socket;
+  useTimeout(VERY_SLOW);
+
+  afterEach(() => {
+    if (socket) socket.destroy();
+    if (child) child.kill();
+  });
+
+  it("connects to our socket and answers `initialize`", async () => {
+    ({ child, socket } = await connectViaPipe((pipe) =>
+      spawn(resolveJetls({}), [...buildArgs({ threads: "auto" }), `--pipe-connect=${pipe}`], { cwd: fixtures })));
+
+    const reply = deferred();
+    socket.on("data", createParser((msg) => { if (msg.id === 1) reply.resolve(msg); }));
+    socket.write(encode({
+      jsonrpc: "2.0", id: 1, method: "initialize",
+      params: { processId: process.pid, rootUri: pathToFileURL(fixtures).href, capabilities: {} },
+    }));
+    expect((await reply.promise).result.capabilities).toBeDefined();
+  });
+});
