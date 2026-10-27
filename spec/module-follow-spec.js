@@ -1,4 +1,6 @@
 const { EventEmitter } = require("events");
+// Node's own timers: Pulsar's spec runner replaces the global setTimeout with a mock clock.
+const { setTimeout } = require("timers");
 const { enclosingModulePath, chooseExistingModule, candidateFor, ModuleFollower, FOLLOW } = require("../lib/workspace/module-follow");
 
 const range = (l1, c1, l2, c2) => ({ start: { line: l1, character: c1 }, end: { line: l2, character: c2 } });
