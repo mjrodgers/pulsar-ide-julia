@@ -1,4 +1,7 @@
-const { signatureFromLine, decorateOutline, describeSymbols } = require("../lib/outline");
+const fs = require("fs");
+const path = require("path");
+const { parseSymbolDump } = require("./helpers/symbol-dump");
+const { signatureFromLine, decorateOutline, describeSymbols, symbolsToOutline, isDocumentSymbolReply } = require("../lib/outline");
 
 describe("signatureFromLine", () => {
   const sig = (line, name, options) => signatureFromLine(line, name, options);
@@ -158,5 +161,177 @@ describe("describeSymbols", () => {
     const out = describeSymbols([{ name: "foo", kind: 12, containerName: "M", location: { range: r(3, 0, 4, 0) } }]);
     expect(out).toContain('container="M" sel=3:0-4:0');
     expect(describeSymbols(null)).toBe("");
+  });
+});
+
+describe("symbolsToOutline (JETLS DocumentSymbol shape)", () => {
+  const r = (l1, c1, l2, c2) => ({ start: { line: l1, character: c1 }, end: { line: l2, character: c2 } });
+  const sym = (name, kind, detail, sel, extra = {}) => ({ name, kind, detail, range: extra.range || sel, selectionRange: sel, children: extra.children });
+  const labels = (trees) => trees.map((t) => [t.plainText, ...labels(t.children)]).flat();
+
+  // modelled on a real dump: arguments, locals, `for` blocks (kind 3, blank name) under a function
+  const reparent = sym("reparent", 12, "function reparent(G::PermGroup, x::PermGroupElem)", r(13, 17, 13, 25), { range: r(13, 8, 15, 3), children: [
+    sym("G", 19, "::PermGroup", r(13, 26, 13, 27)),
+    sym("x", 19, "::PermGroupElem", r(13, 40, 13, 41)),
+  ] });
+  const game = sym("ladder_game!", 12, "function ladder_game!(L::SubgroupLadder, G::PermGroup)", r(18, 9, 18, 21), { range: r(18, 0, 35, 3), children: [
+    sym("sprev", 13, "= L[1]", r(19, 4, 19, 9)),
+    sym("L", 19, "::SubgroupLadder", r(18, 22, 18, 23)),
+    sym(" ", 3, "for s in L", r(20, 7, 20, 14), { range: r(20, 4, 24, 7), children: [sym("s", 13, "for s in L", r(20, 8, 20, 9))] }),
+  ] });
+  const method2 = sym("_my_intersect", 12, "function _my_intersect(V::AbstractVector{PermGroup})", r(311, 9, 311, 22), { range: r(311, 0, 315, 3) });
+  const method1 = sym("_my_intersect", 12, "function _my_intersect(G1::PermGroup, G2::PermGroup)", r(317, 9, 317, 22), { range: r(317, 0, 321, 3) });
+  const constant = sym("N", 14, "const N = 3", r(2, 6, 2, 7));
+
+  it("recognizes the reply shape", () => {
+    expect(isDocumentSymbolReply([reparent])).toBe(true);
+    expect(isDocumentSymbolReply([])).toBe(false);
+    expect(isDocumentSymbolReply(null)).toBe(false);
+    expect(isDocumentSymbolReply([{ name: "x", location: {} }])).toBe(false);
+  });
+
+  it("labels functions with their signature, in source order, and keeps repeated names distinct", () => {
+    const out = symbolsToOutline([method1, constant, reparent, method2]);
+    expect(labels(out.outlineTrees)).toEqual([
+      "N", "reparent(G::PermGroup, x::PermGroupElem)",
+      "_my_intersect(V::AbstractVector{PermGroup})", "_my_intersect(G1::PermGroup, G2::PermGroup)",
+    ]);
+  });
+
+  it("hides arguments, locals and loop blocks by default", () => {
+    const out = symbolsToOutline([reparent, game]);
+    expect(labels(out.outlineTrees)).toEqual(["reparent(G::PermGroup, x::PermGroupElem)", "ladder_game!(L::SubgroupLadder, G::PermGroup)"]);
+  });
+
+  it("shows them when asked, in source order, naming blank blocks by their detail", () => {
+    const out = symbolsToOutline([game], { showLocals: true });
+    expect(labels(out.outlineTrees)).toEqual(["ladder_game!(L::SubgroupLadder, G::PermGroup)", "L", "sprev", "for s in L", "s"]);
+  });
+
+  it("still lists a function defined inside a loop block", () => {
+    const inner = sym("helper", 12, "function helper(y)", r(22, 12, 22, 18));
+    const outer = sym("outer", 12, "function outer()", r(0, 9, 0, 14), { range: r(0, 0, 30, 3), children: [
+      sym(" ", 3, "for i in 1:3", r(20, 7, 20, 14), { children: [sym("i", 13, "for i in 1:3", r(20, 8, 20, 9)), inner] }),
+    ] });
+    expect(labels(symbolsToOutline([outer]).outlineTrees)).toEqual(["outer()", "helper(y)"]);
+  });
+
+  it("uses plain names when signatures are off, and names when a function has no detail", () => {
+    expect(labels(symbolsToOutline([reparent], { signatures: false }).outlineTrees)).toEqual(["reparent"]);
+    expect(labels(symbolsToOutline([sym("f", 12, undefined, r(0, 0, 0, 1))]).outlineTrees)).toEqual(["f"]);
+  });
+
+  it("copes with short-form and macro details, and truncates long ones", () => {
+    expect(labels(symbolsToOutline([sym("foo", 12, "foo(x::Int) = x + 1", r(0, 0, 0, 3))]).outlineTrees)).toEqual(["foo(x::Int)"]);
+    expect(labels(symbolsToOutline([sym("@m", 12, "macro m(x)", r(0, 0, 0, 2))]).outlineTrees)).toEqual(["@m(x)"]);
+    const long = sym("foo", 12, `function foo(${"a, ".repeat(100)}z)`, r(0, 0, 0, 3));
+    expect(symbolsToOutline([long], { maxLength: 30 }).outlineTrees[0].plainText.length).toBe(30);
+  });
+
+  it("produces what Pulsar's outline view reads", () => {
+    const [tree] = symbolsToOutline([reparent]).outlineTrees;
+    expect(tree.icon).toBe("type-function");
+    expect(tree.representativeName).toBe("reparent");
+    expect(tree.tokenizedText[0]).toEqual({ kind: "method", value: "reparent" });
+    expect(tree.startPosition.row).toBe(13);
+    expect(tree.startPosition.column).toBe(17);
+    expect(tree.endPosition.column).toBe(25);
+  });
+
+  it("returns an empty outline for no symbols", () => {
+    expect(symbolsToOutline(null)).toEqual({ outlineTrees: [] });
+    expect(symbolsToOutline([])).toEqual({ outlineTrees: [] });
+  });
+});
+
+// Real JETLS output, captured with the "Dump Document Symbols" command.
+describe("symbolsToOutline with real JETLS dumps", () => {
+  const load = (name) => parseSymbolDump(fs.readFileSync(path.join(__dirname, "fixtures", "symbol-dumps", name), "utf8"));
+  const flat = (trees) => trees.map((t) => [t.plainText, ...flat(t.children)]).flat();
+  const tops = (trees) => trees.map((t) => t.plainText);
+
+  describe("a file of structs and methods", () => {
+    const symbols = load("structs-and-methods.txt");
+
+    it("parses the whole dump", () => {
+      expect(symbols.length).toBeGreaterThan(40);
+      expect(symbols[1].children.length).toBe(5); // GAPTransversalTest's fields
+    });
+
+    it("labels every top-level entry: types by header, functions by signature", () => {
+      const labels = tops(symbolsToOutline(symbols).outlineTrees);
+      expect(labels.slice(0, 8)).toEqual([
+        "AbstractTestFunction",
+        "GAPTransversalTest <: AbstractTestFunction",
+        "GAPTransversalTest(G::PermGroup, H::PermGroup; ambient::PermGroup = G)",
+        "_coset_rep(tf::GAPTransversalTest, x::PermGroupElem)",
+        "FunctionTest{F} <: AbstractTestFunction",
+        "FunctionTest(Tvec::Vector{PermGroupElem}, f::F; ambient::PermGroup = parent(first(Tvec))) where F",
+        "_coset_rep(tf::FunctionTest, x::PermGroupElem)",
+        "coset_rep(tf::AbstractTestFunction, x::PermGroupElem)",
+      ]);
+    });
+
+    it("handles short-form methods of qualified names, with or without a leading macro", () => {
+      const labels = tops(symbolsToOutline(symbols).outlineTrees);
+      expect(labels).toContain("Oscar.elements(tf::AbstractTestFunction)");
+      expect(labels).toContain("data(T::TransversalChain)");
+      expect(labels).toContain("Base.getindex(T::TransversalChain, i::IntegerUnion)");
+      expect(labels).toContain('Base.show(io::IO, ::MIME"text/plain", S::LadderStep)');
+    });
+
+    it("keeps repeated names as separate entries, each with its own signature", () => {
+      const shows = tops(symbolsToOutline(symbols).outlineTrees).filter((l) => l.startsWith("Base.show("));
+      expect(shows.length).toBe(7);
+      expect(new Set(shows).size).toBe(7);
+    });
+
+    it("shows struct fields with their types, and inner constructors with signatures", () => {
+      const ladder = symbolsToOutline(symbols).outlineTrees.find((t) => t.plainText === "LadderStep");
+      expect(ladder.tokenizedText[0].kind).toBe("type");
+      expect(flat(ladder.children)).toEqual([
+        "is_up_step::Bool", "Aprev::PermGroup", "A::PermGroup", "test::AbstractTestFunction",
+        "DSt::Dict{PermGroupElem, TransversalChain}", "Im::Dict{PermGroupElem, Tuple{PermGroupElem, PermGroupElem}}", "F",
+        "LadderStep(Aprev::PermGroup, A::PermGroup)",
+        "LadderStep(Aprev::PermGroup, A::PermGroup, test::AbstractTestFunction)",
+      ]);
+    });
+
+    it("contains no arguments, locals or blocks unless asked for", () => {
+      const all = flat(symbolsToOutline(symbols).outlineTrees);
+      for (const unwanted of ["tf", "x", "idx", "for (i, a) in enumerate(elements(tf))"]) expect(all).not.toContain(unwanted);
+      const withLocals = flat(symbolsToOutline(symbols, { showLocals: true }).outlineTrees);
+      expect(withLocals).toContain("for (i, a) in enumerate(elements(tf))");
+      expect(withLocals).toContain("idx");
+    });
+
+    it("never produces an empty label, and keeps labels to one line", () => {
+      for (const showLocals of [false, true]) {
+        for (const label of flat(symbolsToOutline(symbols, { showLocals }).outlineTrees)) {
+          expect(label.trim().length).toBeGreaterThan(0);
+          expect(label.includes("\n")).toBe(false);
+        }
+      }
+    });
+  });
+
+  describe("a module with constants and a macro", () => {
+    const symbols = load("module-and-consts.txt");
+
+    it("lists the module's contents: constants by name, functions and macros by signature", () => {
+      const [mod] = symbolsToOutline(symbols).outlineTrees;
+      expect(mod.plainText).toBe("Oscar");
+      expect(tops(mod.children)).toEqual([
+        "windows_error()", "_print_banner(;is_dev = Oscar.is_dev)", "__init__()",
+        "VERSION_NUMBER", "PROJECT_UUID", "is_dev", "oscardir",
+        "example(s::String)", "@example(s)", "data(s::String)", "revise(s::String)", "system(s::String)", "build()", "ANTIC",
+      ]);
+    });
+
+    it("collapses a multi-line block label when locals are shown", () => {
+      const init = symbolsToOutline(symbols, { showLocals: true }).outlineTrees[0].children.find((t) => t.plainText === "__init__()");
+      expect(init.children[0].plainText).toBe("for pkg in [ …");
+      expect(init.children[0].children[0].plainText).toBe("pkg");
+    });
   });
 });

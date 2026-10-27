@@ -1,0 +1,186 @@
+kind=11 name="AbstractTestFunction" detail="abstract type AbstractTestFunction" sel=19:14-19:34 range=19:0-19:38  | abstract type AbstractTestFunction end
+kind=23 name="GAPTransversalTest" detail="mutable struct GAPTransversalTest <: AbstractTestFunction" sel=22:15-22:33 range=22:0-28:3  | mutable struct GAPTransversalTest <: AbstractTestFunction
+  kind=8 name="T" detail="::Oscar.SubgroupTransversal{PermGroup, PermGroup, PermGroupElem}" sel=23:2-23:3 range=23:2-23:67  | T::Oscar.SubgroupTransversal{PermGroup, PermGroup, PermGroupElem}
+  kind=8 name="Tvec" detail="::Vector{PermGroupElem}" sel=24:2-24:6 range=24:2-24:29  | Tvec::Vector{PermGroupElem}
+  kind=8 name="domain" detail="::PermGroup" sel=25:2-25:8 range=25:2-25:19  | domain::PermGroup
+  kind=8 name="ambient" detail="::PermGroup" sel=26:2-26:9 range=26:2-26:20  | ambient::PermGroup
+  kind=8 name="__index_cache" detail="::Dict{PermGroupElem,Int}" sel=27:2-27:15 range=27:2-27:40  | __index_cache::Dict{PermGroupElem,Int}
+kind=12 name="GAPTransversalTest" detail="function GAPTransversalTest(G::PermGroup, H::PermGroup; ambient::PermGroup = G)" sel=30:9-30:27 range=30:0-34:3  | function GAPTransversalTest(G::PermGroup, H::PermGroup; ambient::PermGroup = G)
+  kind=13 name="Tvec" detail="= PermGroupElem[ reparent(ambient, t) for t in T ]" sel=32:2-32:6 range=32:2-32:6  | Tvec = PermGroupElem[ reparent(ambient, t) for t in T ]
+  kind=13 name="T" detail="= right_transversal(G, H)" sel=31:2-31:3 range=31:2-31:3  | T = right_transversal(G, H)
+  kind=19 name="ambient" detail="::PermGroup" sel=30:56-30:63 range=30:56-30:63  | function GAPTransversalTest(G::PermGroup, H::PermGroup; ambient::PermGroup = G)
+  kind=19 name="G" detail="::PermGroup" sel=30:28-30:29 range=30:28-30:29  | function GAPTransversalTest(G::PermGroup, H::PermGroup; ambient::PermGroup = G)
+  kind=19 name="H" detail="::PermGroup" sel=30:42-30:43 range=30:42-30:43  | function GAPTransversalTest(G::PermGroup, H::PermGroup; ambient::PermGroup = G)
+  kind=13 name="t" detail="in T" sel=32:49-32:50 range=32:49-32:50  | Tvec = PermGroupElem[ reparent(ambient, t) for t in T ]
+kind=12 name="_coset_rep" detail="(tf::GAPTransversalTest, x::PermGroupElem) =" sel=36:0-36:10 range=36:0-36:113  | _coset_rep(tf::GAPTransversalTest, x::PermGroupElem) = tf.Tvec[index_of_coset(Int, tf.T, reparent(tf
+  kind=19 name="x" detail="::PermGroupElem" sel=36:35-36:36 range=36:35-36:36  | _coset_rep(tf::GAPTransversalTest, x::PermGroupElem) = tf.Tvec[index_of_coset(Int, tf.T, reparent(tf
+  kind=19 name="tf" detail="::GAPTransversalTest" sel=36:11-36:13 range=36:11-36:13  | _coset_rep(tf::GAPTransversalTest, x::PermGroupElem) = tf.Tvec[index_of_coset(Int, tf.T, reparent(tf
+kind=23 name="FunctionTest" detail="mutable struct FunctionTest{F} <: AbstractTestFunction" sel=40:15-40:27 range=40:0-46:3  | mutable struct FunctionTest{F} <: AbstractTestFunction
+  kind=8 name="f" detail="::F" sel=41:2-41:3 range=41:2-41:6  | f::F   # maps to coset rep
+  kind=8 name="Tvec" detail="::Vector{PermGroupElem}" sel=42:2-42:6 range=42:2-42:29  | Tvec::Vector{PermGroupElem}
+  kind=8 name="domain" detail="::PermGroup" sel=43:2-43:8 range=43:2-43:19  | domain::PermGroup
+  kind=8 name="ambient" detail="::PermGroup" sel=44:2-44:9 range=44:2-44:20  | ambient::PermGroup
+  kind=8 name="__index_cache" detail="::Dict{PermGroupElem,Int}" sel=45:2-45:15 range=45:2-45:40  | __index_cache::Dict{PermGroupElem,Int}
+kind=12 name="FunctionTest" detail="function FunctionTest(Tvec::Vector{PermGroupElem}, f::F; ambient::PermGroup = parent(first(Tvec))) where F" sel=48:9-48:21 range=48:0-52:3  | function FunctionTest(Tvec::Vector{PermGroupElem}, f::F; ambient::PermGroup = parent(first(Tvec))) w
+  kind=19 name="Tvec" detail="::Vector{PermGroupElem}" sel=48:22-48:26 range=48:22-48:26  | function FunctionTest(Tvec::Vector{PermGroupElem}, f::F; ambient::PermGroup = parent(first(Tvec))) w
+  kind=26 name="F" sel=48:105-48:106 range=48:105-48:106  | function FunctionTest(Tvec::Vector{PermGroupElem}, f::F; ambient::PermGroup = parent(first(Tvec))) w
+  kind=19 name="ambient" detail="::PermGroup" sel=48:57-48:64 range=48:57-48:64  | function FunctionTest(Tvec::Vector{PermGroupElem}, f::F; ambient::PermGroup = parent(first(Tvec))) w
+  kind=19 name="f" detail="::F" sel=48:51-48:52 range=48:51-48:52  | function FunctionTest(Tvec::Vector{PermGroupElem}, f::F; ambient::PermGroup = parent(first(Tvec))) w
+  kind=13 name="tf" detail="= FunctionTest{F}(f, copy(Tvec), parent(first(Tvec)), ambient, Dict{PermGroupElem,Int}())" sel=49:2-49:4 range=49:2-49:4  | tf = FunctionTest{F}(f, copy(Tvec), parent(first(Tvec)), ambient, Dict{PermGroupElem,Int}())
+kind=12 name="_coset_rep" detail="(tf::FunctionTest, x::PermGroupElem) =" sel=54:0-54:10 range=54:0-54:99  | _coset_rep(tf::FunctionTest, x::PermGroupElem) = reparent(tf.ambient, tf.f(reparent(tf.domain, x)))
+  kind=19 name="x" detail="::PermGroupElem" sel=54:29-54:30 range=54:29-54:30  | _coset_rep(tf::FunctionTest, x::PermGroupElem) = reparent(tf.ambient, tf.f(reparent(tf.domain, x)))
+  kind=19 name="tf" detail="::FunctionTest" sel=54:11-54:13 range=54:11-54:13  | _coset_rep(tf::FunctionTest, x::PermGroupElem) = reparent(tf.ambient, tf.f(reparent(tf.domain, x)))
+kind=12 name="coset_rep" detail="(tf::AbstractTestFunction, x::PermGroupElem) =" sel=57:0-57:9 range=57:0-57:88  | coset_rep(tf::AbstractTestFunction, x::PermGroupElem) = _coset_rep(tf, x)::PermGroupElem
+  kind=19 name="x" detail="::PermGroupElem" sel=57:36-57:37 range=57:36-57:37  | coset_rep(tf::AbstractTestFunction, x::PermGroupElem) = _coset_rep(tf, x)::PermGroupElem
+  kind=19 name="tf" detail="::AbstractTestFunction" sel=57:10-57:12 range=57:10-57:12  | coset_rep(tf::AbstractTestFunction, x::PermGroupElem) = _coset_rep(tf, x)::PermGroupElem
+kind=12 name="Oscar.elements" detail="(tf::AbstractTestFunction) =" sel=58:0-58:14 range=58:0-58:73  | Oscar.elements(tf::AbstractTestFunction) = tf.Tvec::Vector{PermGroupElem}
+  kind=19 name="tf" detail="::AbstractTestFunction" sel=58:15-58:17 range=58:15-58:17  | Oscar.elements(tf::AbstractTestFunction) = tf.Tvec::Vector{PermGroupElem}
+kind=12 name="Oscar.domain" detail="(tf::AbstractTestFunction) =" sel=59:0-59:12 range=59:0-59:61  | Oscar.domain(tf::AbstractTestFunction) = tf.domain::PermGroup
+  kind=19 name="tf" detail="::AbstractTestFunction" sel=59:13-59:15 range=59:13-59:15  | Oscar.domain(tf::AbstractTestFunction) = tf.domain::PermGroup
+kind=12 name="_ambient_group" detail="(tf::AbstractTestFunction) =" sel=60:0-60:14 range=60:0-60:64  | _ambient_group(tf::AbstractTestFunction) = tf.ambient::PermGroup
+  kind=19 name="tf" detail="::AbstractTestFunction" sel=60:15-60:17 range=60:15-60:17  | _ambient_group(tf::AbstractTestFunction) = tf.ambient::PermGroup
+kind=12 name="set_ambient!" detail="function set_ambient!(tf::AbstractTestFunction, G::PermGroup)" sel=61:9-61:21 range=61:0-66:3  | function set_ambient!(tf::AbstractTestFunction, G::PermGroup)
+  kind=19 name="tf" detail="::AbstractTestFunction" sel=61:22-61:24 range=61:22-61:24  | function set_ambient!(tf::AbstractTestFunction, G::PermGroup)
+  kind=19 name="G" detail="::PermGroup" sel=61:48-61:49 range=61:48-61:49  | function set_ambient!(tf::AbstractTestFunction, G::PermGroup)
+kind=12 name="_index_lookup" detail="function _index_lookup(tf::AbstractTestFunction)" sel=68:9-68:22 range=68:0-75:3  | function _index_lookup(tf::AbstractTestFunction)
+  kind=19 name="tf" detail="::AbstractTestFunction" sel=68:23-68:25 range=68:23-68:25  | function _index_lookup(tf::AbstractTestFunction)
+  kind=3 name=" " detail="for (i, a) in enumerate(elements(tf))" sel=70:7-70:41 range=70:4-72:7  | for (i, a) in enumerate(elements(tf))
+    kind=13 name="a" detail="for (i, a) in enumerate(elements(tf))" sel=70:12-70:13 range=70:12-70:13  | for (i, a) in enumerate(elements(tf))
+    kind=13 name="i" detail="for (i, a) in enumerate(elements(tf))" sel=70:9-70:10 range=70:9-70:10  | for (i, a) in enumerate(elements(tf))
+kind=12 name="sibling_lt" detail="function sibling_lt(tf::AbstractTestFunction, x::PermGroupElem, y::PermGroupElem)" sel=78:9-78:19 range=78:0-81:3  | function sibling_lt(tf::AbstractTestFunction, x::PermGroupElem, y::PermGroupElem)
+  kind=19 name="y" detail="::PermGroupElem" sel=78:64-78:65 range=78:64-78:65  | function sibling_lt(tf::AbstractTestFunction, x::PermGroupElem, y::PermGroupElem)
+  kind=13 name="idx" detail="= _index_lookup(tf)" sel=79:2-79:5 range=79:2-79:5  | idx = _index_lookup(tf)
+  kind=19 name="tf" detail="::AbstractTestFunction" sel=78:20-78:22 range=78:20-78:22  | function sibling_lt(tf::AbstractTestFunction, x::PermGroupElem, y::PermGroupElem)
+  kind=19 name="x" detail="::PermGroupElem" sel=78:46-78:47 range=78:46-78:47  | function sibling_lt(tf::AbstractTestFunction, x::PermGroupElem, y::PermGroupElem)
+kind=12 name="Base.show" detail="function Base.show(io::IO, tf::GAPTransversalTest)" sel=83:9-83:18 range=83:0-89:3  | function Base.show(io::IO, tf::GAPTransversalTest)
+  kind=19 name="io" detail="::IO" sel=83:19-83:21 range=83:19-83:21  | function Base.show(io::IO, tf::GAPTransversalTest)
+  kind=19 name="tf" detail="::GAPTransversalTest" sel=83:27-83:29 range=83:27-83:29  | function Base.show(io::IO, tf::GAPTransversalTest)
+kind=12 name="Base.show" detail="function Base.show(io::IO, tf::FunctionTest)" sel=91:9-91:18 range=91:0-97:3  | function Base.show(io::IO, tf::FunctionTest)
+  kind=19 name="tf" detail="::FunctionTest" sel=91:27-91:29 range=91:27-91:29  | function Base.show(io::IO, tf::FunctionTest)
+  kind=19 name="io" detail="::IO" sel=91:19-91:21 range=91:19-91:21  | function Base.show(io::IO, tf::FunctionTest)
+kind=23 name="TransversalChain" detail="mutable struct TransversalChain" sel=100:15-100:31 range=100:0-102:3  | mutable struct TransversalChain
+  kind=8 name="C" detail="::Vector{Tuple{PermGroup, Vector{PermGroupElem}}}" sel=101:2-101:3 range=101:2-101:52  | C::Vector{Tuple{PermGroup, Vector{PermGroupElem}}}
+kind=12 name="data" detail="(T::TransversalChain) =" sel=104:8-104:12 range=104:7-104:39  | @inline data(T::TransversalChain) = T.C
+  kind=19 name="T" detail="::TransversalChain" sel=104:13-104:14 range=104:13-104:14  | @inline data(T::TransversalChain) = T.C
+kind=12 name="Base.size" detail="(T::TransversalChain) =" sel=105:8-105:17 range=105:7-105:54  | @inline Base.size(T::TransversalChain) = size(data(T))
+  kind=19 name="T" detail="::TransversalChain" sel=105:18-105:19 range=105:18-105:19  | @inline Base.size(T::TransversalChain) = size(data(T))
+kind=12 name="Base.length" detail="(T::TransversalChain) =" sel=106:8-106:19 range=106:7-106:58  | @inline Base.length(T::TransversalChain) = length(data(T))
+  kind=19 name="T" detail="::TransversalChain" sel=106:20-106:21 range=106:20-106:21  | @inline Base.length(T::TransversalChain) = length(data(T))
+kind=12 name="Base.firstindex" detail="(T::TransversalChain) =" sel=107:8-107:23 range=107:7-107:48  | @inline Base.firstindex(T::TransversalChain) = 1
+  kind=19 name="T" detail="::TransversalChain" sel=107:24-107:25 range=107:24-107:25  | @inline Base.firstindex(T::TransversalChain) = 1
+kind=12 name="Base.lastindex" detail="(T::TransversalChain) =" sel=108:8-108:22 range=108:7-108:55  | @inline Base.lastindex(T::TransversalChain) = length(T)
+  kind=19 name="T" detail="::TransversalChain" sel=108:23-108:24 range=108:23-108:24  | @inline Base.lastindex(T::TransversalChain) = length(T)
+kind=12 name="Base.getindex" detail="(T::TransversalChain, i::IntegerUnion) =" sel=109:8-109:21 range=109:7-109:87  | @inline Base.getindex(T::TransversalChain, i::IntegerUnion) = getindex(data(T), Int(i))
+  kind=19 name="T" detail="::TransversalChain" sel=109:22-109:23 range=109:22-109:23  | @inline Base.getindex(T::TransversalChain, i::IntegerUnion) = getindex(data(T), Int(i))
+  kind=19 name="i" detail="::IntegerUnion" sel=109:43-109:44 range=109:43-109:44  | @inline Base.getindex(T::TransversalChain, i::IntegerUnion) = getindex(data(T), Int(i))
+kind=12 name="TransversalChain" detail="function TransversalChain(U::PermGroup)" sel=112:9-112:25 range=112:0-125:3  | function TransversalChain(U::PermGroup)
+  kind=19 name="U" detail="::PermGroup" sel=112:26-112:27 range=112:26-112:27  | function TransversalChain(U::PermGroup)
+  kind=13 name="C" detail="= Tuple{PermGroup, Vector{PermGroupElem}}[]" sel=114:2-114:3 range=114:2-114:3  | C = Tuple{PermGroup, Vector{PermGroupElem}}[]
+  kind=13 name="U0" detail="= U" sel=113:2-113:4 range=113:2-113:4  | U0 = U
+  kind=3 name=" " detail="while length(U0) != 1" sel=115:7-115:23 range=115:2-121:5  | while length(U0) != 1
+    kind=13 name="s" detail="= first(moved_points(U0))" sel=116:4-116:5 range=116:4-116:5  | s = first(moved_points(U0))
+    kind=13 name="T" detail="= right_transversal(U0, U)" sel=118:4-118:5 range=118:4-118:5  | T = right_transversal(U0, U)
+kind=12 name="get_transversal_chain" detail="(U::PermGroup) =" sel=127:0-127:21 range=127:0-127:57  | get_transversal_chain(U::PermGroup) = TransversalChain(U)
+  kind=19 name="U" detail="::PermGroup" sel=127:22-127:23 range=127:22-127:23  | get_transversal_chain(U::PermGroup) = TransversalChain(U)
+kind=12 name="Base.show" detail="function Base.show(io::IO, T::TransversalChain)" sel=129:9-129:18 range=129:0-135:3  | function Base.show(io::IO, T::TransversalChain)
+  kind=19 name="T" detail="::TransversalChain" sel=129:27-129:28 range=129:27-129:28  | function Base.show(io::IO, T::TransversalChain)
+  kind=19 name="io" detail="::IO" sel=129:19-129:21 range=129:19-129:21  | function Base.show(io::IO, T::TransversalChain)
+kind=23 name="LadderStep" detail="mutable struct LadderStep" sel=138:27-138:37 range=138:12-168:3  | @attributes mutable struct LadderStep
+  kind=8 name="is_up_step" detail="::Bool" sel=139:2-139:12 range=139:2-139:18  | is_up_step::Bool
+  kind=8 name="Aprev" detail="::PermGroup" sel=140:2-140:7 range=140:2-140:18  | Aprev::PermGroup
+  kind=8 name="A" detail="::PermGroup" sel=141:2-141:3 range=141:2-141:14  | A::PermGroup
+  kind=8 name="test" detail="::AbstractTestFunction" sel=142:2-142:6 range=142:2-142:28  | test::AbstractTestFunction
+  kind=8 name="DSt" detail="::Dict{PermGroupElem, TransversalChain}" sel=143:2-143:5 range=143:2-143:44  | DSt::Dict{PermGroupElem, TransversalChain}
+  kind=8 name="Im" detail="::Dict{PermGroupElem, Tuple{PermGroupElem, PermGroupElem}}" sel=144:2-144:4 range=144:2-144:62  | Im::Dict{PermGroupElem, Tuple{PermGroupElem, PermGroupElem}}
+  kind=8 name="F" sel=145:2-145:3 range=145:2-145:3  | F
+  kind=12 name="LadderStep" detail="function LadderStep(Aprev::PermGroup, A::PermGroup)" sel=147:11-147:21 range=147:2-156:5  | function LadderStep(Aprev::PermGroup, A::PermGroup)
+    kind=19 name="A" detail="::PermGroup" sel=147:40-147:41 range=147:40-147:41  | function LadderStep(Aprev::PermGroup, A::PermGroup)
+    kind=19 name="Aprev" detail="::PermGroup" sel=147:22-147:27 range=147:22-147:27  | function LadderStep(Aprev::PermGroup, A::PermGroup)
+    kind=13 name="u" detail="= true" sel=149:6-149:7 range=149:6-149:7  | u = true
+  kind=12 name="LadderStep" detail="function LadderStep(Aprev::PermGroup, A::PermGroup, test::AbstractTestFunction)" sel=158:11-158:21 range=158:2-167:5  | function LadderStep(Aprev::PermGroup, A::PermGroup, test::AbstractTestFunction)
+    kind=19 name="A" detail="::PermGroup" sel=158:40-158:41 range=158:40-158:41  | function LadderStep(Aprev::PermGroup, A::PermGroup, test::AbstractTestFunction)
+    kind=19 name="test" detail="::AbstractTestFunction" sel=158:54-158:58 range=158:54-158:58  | function LadderStep(Aprev::PermGroup, A::PermGroup, test::AbstractTestFunction)
+    kind=13 name="u" detail="= true" sel=160:6-160:7 range=160:6-160:7  | u = true
+    kind=19 name="Aprev" detail="::PermGroup" sel=158:22-158:27 range=158:22-158:27  | function LadderStep(Aprev::PermGroup, A::PermGroup, test::AbstractTestFunction)
+kind=12 name="Base.getproperty" detail="function Base.getproperty(S::LadderStep, s::Symbol)" sel=170:9-170:25 range=170:0-176:3  | function Base.getproperty(S::LadderStep, s::Symbol)
+  kind=19 name="S" detail="::LadderStep" sel=170:26-170:27 range=170:26-170:27  | function Base.getproperty(S::LadderStep, s::Symbol)
+  kind=19 name="s" detail="::Symbol" sel=170:41-170:42 range=170:41-170:42  | function Base.getproperty(S::LadderStep, s::Symbol)
+kind=12 name="_get_previous_steps" detail="(S::LadderStep) =" sel=178:8-178:27 range=178:7-178:49  | @inline _get_previous_steps(S::LadderStep) =  S.F
+  kind=19 name="S" detail="::LadderStep" sel=178:28-178:29 range=178:28-178:29  | @inline _get_previous_steps(S::LadderStep) =  S.F
+kind=12 name="sibling_lt" detail="function sibling_lt(S::LadderStep, x::PermGroupElem, y::PermGroupElem)" sel=180:9-180:19 range=180:0-184:3  | function sibling_lt(S::LadderStep, x::PermGroupElem, y::PermGroupElem)
+  kind=19 name="x" detail="::PermGroupElem" sel=180:35-180:36 range=180:35-180:36  | function sibling_lt(S::LadderStep, x::PermGroupElem, y::PermGroupElem)
+  kind=19 name="y" detail="::PermGroupElem" sel=180:53-180:54 range=180:53-180:54  | function sibling_lt(S::LadderStep, x::PermGroupElem, y::PermGroupElem)
+  kind=13 name="f" detail="= get_attribute(S, :sibling_order, nothing)" sel=181:2-181:3 range=181:2-181:3  | f = get_attribute(S, :sibling_order, nothing)
+  kind=19 name="S" detail="::LadderStep" sel=180:20-180:21 range=180:20-180:21  | function sibling_lt(S::LadderStep, x::PermGroupElem, y::PermGroupElem)
+kind=12 name="Base.show" detail="function Base.show(io::IO, ::MIME\"text/plain\", S::LadderStep)" sel=187:9-187:18 range=187:0-196:3  | function Base.show(io::IO, ::MIME"text/plain", S::LadderStep)
+  kind=19 name="io" detail="::IO" sel=187:19-187:21 range=187:19-187:21  | function Base.show(io::IO, ::MIME"text/plain", S::LadderStep)
+  kind=13 name="dir" detail="= S.is_up_step ? \"up-step\" : \"down-step\"" sel=190:2-190:5 range=190:2-190:5  | dir = S.is_up_step ? "up-step" : "down-step"
+  kind=19 name="S" detail="::LadderStep" sel=187:47-187:48 range=187:47-187:48  | function Base.show(io::IO, ::MIME"text/plain", S::LadderStep)
+kind=12 name="Base.show" detail="function Base.show(io::IO, S::LadderStep)" sel=198:9-198:18 range=198:0-208:3  | function Base.show(io::IO, S::LadderStep)
+  kind=13 name="dir" detail="= S.is_up_step ? \"up\" : \"down\"" sel=204:4-204:7 range=204:4-204:7  | dir = S.is_up_step ? "up" : "down"
+  kind=19 name="io" detail="::IO" sel=198:19-198:21 range=198:19-198:21  | function Base.show(io::IO, S::LadderStep)
+  kind=19 name="S" detail="::LadderStep" sel=198:27-198:28 range=198:27-198:28  | function Base.show(io::IO, S::LadderStep)
+kind=23 name="SubgroupLadder" detail="mutable struct SubgroupLadder <: AbstractVector{LadderStep}" sel=213:27-213:41 range=213:12-225:3  | @attributes mutable struct SubgroupLadder <: AbstractVector{LadderStep}
+  kind=8 name="S" detail="::Vector{LadderStep}" sel=214:2-214:3 range=214:2-214:23  | S::Vector{LadderStep}
+  kind=8 name="G" detail="::PermGroup" sel=215:2-215:3 range=215:2-215:14  | G::PermGroup
+  kind=12 name="SubgroupLadder" detail="function SubgroupLadder(S::Vector{LadderStep})" sel=217:11-217:25 range=217:2-224:5  | function SubgroupLadder(S::Vector{LadderStep})
+    kind=13 name="L" detail="= new(S, S[1].A)" sel=219:4-219:5 range=219:4-219:5  | L = new(S, S[1].A)
+    kind=19 name="S" detail="::Vector{LadderStep}" sel=217:26-217:27 range=217:26-217:27  | function SubgroupLadder(S::Vector{LadderStep})
+    kind=3 name=" " detail="for (i, s) in enumerate(L)" sel=220:7-220:30 range=220:4-222:7  | for (i, s) in enumerate(L)
+      kind=13 name="i" detail="for (i, s) in enumerate(L)" sel=220:9-220:10 range=220:9-220:10  | for (i, s) in enumerate(L)
+      kind=13 name="s" detail="for (i, s) in enumerate(L)" sel=220:12-220:13 range=220:12-220:13  | for (i, s) in enumerate(L)
+kind=12 name="_is_valid_strong_down_extension" detail="function _is_valid_strong_down_extension(Aprev::PermGroup, A::PermGroup, C::PermGroup)" sel=229:9-229:40 range=229:0-232:3  | function _is_valid_strong_down_extension(Aprev::PermGroup, A::PermGroup, C::PermGroup)
+  kind=19 name="C" detail="::PermGroup" sel=229:73-229:74 range=229:73-229:74  | function _is_valid_strong_down_extension(Aprev::PermGroup, A::PermGroup, C::PermGroup)
+  kind=13 name="D" detail="= _my_intersect(A, C)" sel=230:2-230:3 range=230:2-230:3  | D = _my_intersect(A, C)
+  kind=19 name="Aprev" detail="::PermGroup" sel=229:41-229:46 range=229:41-229:46  | function _is_valid_strong_down_extension(Aprev::PermGroup, A::PermGroup, C::PermGroup)
+  kind=19 name="A" detail="::PermGroup" sel=229:59-229:60 range=229:59-229:60  | function _is_valid_strong_down_extension(Aprev::PermGroup, A::PermGroup, C::PermGroup)
+kind=12 name="extend_ladder_down!" detail="function extend_ladder_down!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)" sel=234:9-234:28 range=234:0-241:3  | function extend_ladder_down!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)
+  kind=19 name="S" detail="::Vector{LadderStep}" sel=234:29-234:30 range=234:29-234:30  | function extend_ladder_down!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)
+  kind=19 name="A" detail="::PermGroup" sel=234:52-234:53 range=234:52-234:53  | function extend_ladder_down!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)
+  kind=13 name="D" detail="is_strong, D = _is_valid_strong_down_extension(Aprev, A, C)" sel=237:13-237:14 range=237:13-237:14  | is_strong, D = _is_valid_strong_down_extension(Aprev, A, C)
+  kind=13 name="is_strong" detail=", D = _is_valid_strong_down_extension(Aprev, A, C)" sel=237:2-237:11 range=237:2-237:11  | is_strong, D = _is_valid_strong_down_extension(Aprev, A, C)
+  kind=13 name="Aprev" detail="= S[end].A" sel=235:2-235:7 range=235:2-235:7  | Aprev = S[end].A
+  kind=19 name="C" detail="::PermGroup" sel=234:66-234:67 range=234:66-234:67  | function extend_ladder_down!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)
+kind=12 name="extend_ladder_up!" detail="function extend_ladder_up!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)" sel=243:9-243:26 range=243:0-248:3  | function extend_ladder_up!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)
+  kind=19 name="S" detail="::Vector{LadderStep}" sel=243:27-243:28 range=243:27-243:28  | function extend_ladder_up!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)
+  kind=19 name="A" detail="::PermGroup" sel=243:50-243:51 range=243:50-243:51  | function extend_ladder_up!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)
+  kind=19 name="C" detail="::PermGroup" sel=243:64-243:65 range=243:64-243:65  | function extend_ladder_up!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)
+  kind=13 name="Aprev" detail="= S[end].A" sel=244:2-244:7 range=244:2-244:7  | Aprev = S[end].A
+kind=12 name="extend_ladder!" detail="function extend_ladder!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)" sel=250:9-250:23 range=250:0-255:3  | function extend_ladder!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)
+  kind=19 name="A" detail="::PermGroup" sel=250:47-250:48 range=250:47-250:48  | function extend_ladder!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)
+  kind=13 name="Aprev" detail="= S[end].A" sel=251:2-251:7 range=251:2-251:7  | Aprev = S[end].A
+  kind=19 name="C" detail="::PermGroup" sel=250:61-250:62 range=250:61-250:62  | function extend_ladder!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)
+  kind=19 name="S" detail="::Vector{LadderStep}" sel=250:24-250:25 range=250:24-250:25  | function extend_ladder!(S::Vector{LadderStep}, A::PermGroup, C::PermGroup)
+kind=12 name="SubgroupLadder" detail="function SubgroupLadder(S::Vector{PermGroup})" sel=257:9-257:23 range=257:0-265:3  | function SubgroupLadder(S::Vector{PermGroup})
+  kind=19 name="S" detail="::Vector{PermGroup}" sel=257:24-257:25 range=257:24-257:25  | function SubgroupLadder(S::Vector{PermGroup})
+  kind=13 name="LS" detail="= LadderStep[LadderStep(C, C)]" sel=260:2-260:4 range=260:2-260:4  | LS = LadderStep[LadderStep(C, C)]
+  kind=13 name="C" detail="= first(S)" sel=259:2-259:3 range=259:2-259:3  | C = first(S)
+  kind=3 name=" " detail="for i in 2:length(S)" sel=261:5-261:22 range=261:2-263:5  | for i in 2:length(S)
+    kind=13 name="i" detail="for i in 2:length(S)" sel=261:6-261:7 range=261:6-261:7  | for i in 2:length(S)
+kind=12 name="_ambient_group" detail="(L::SubgroupLadder) =" sel=267:0-267:14 range=267:0-267:50  | _ambient_group(L::SubgroupLadder) = L.G::PermGroup
+  kind=19 name="L" detail="::SubgroupLadder" sel=267:15-267:16 range=267:15-267:16  | _ambient_group(L::SubgroupLadder) = L.G::PermGroup
+kind=12 name="Base.parent" detail="(S::LadderStep) =" sel=268:0-268:11 range=268:0-268:55  | Base.parent(S::LadderStep) = S.F.parent::SubgroupLadder
+  kind=19 name="S" detail="::LadderStep" sel=268:12-268:13 range=268:12-268:13  | Base.parent(S::LadderStep) = S.F.parent::SubgroupLadder
+kind=12 name="_ambient_group" detail="(S::LadderStep) =" sel=269:0-269:14 range=269:0-269:57  | _ambient_group(S::LadderStep) = _ambient_group(parent(S))
+  kind=19 name="S" detail="::LadderStep" sel=269:15-269:16 range=269:15-269:16  | _ambient_group(S::LadderStep) = _ambient_group(parent(S))
+kind=12 name="data" detail="(L::SubgroupLadder) =" sel=271:8-271:12 range=271:7-271:57  | @inline data(L::SubgroupLadder) = L.S::Vector{LadderStep}
+  kind=19 name="L" detail="::SubgroupLadder" sel=271:13-271:14 range=271:13-271:14  | @inline data(L::SubgroupLadder) = L.S::Vector{LadderStep}
+kind=12 name="Base.show" detail="function Base.show(io::IO, ::MIME\"text/plain\", L::SubgroupLadder)" sel=273:9-273:18 range=273:0-282:3  | function Base.show(io::IO, ::MIME"text/plain", L::SubgroupLadder)
+  kind=19 name="L" detail="::SubgroupLadder" sel=273:47-273:48 range=273:47-273:48  | function Base.show(io::IO, ::MIME"text/plain", L::SubgroupLadder)
+  kind=19 name="io" detail="::IO" sel=273:19-273:21 range=273:19-273:21  | function Base.show(io::IO, ::MIME"text/plain", L::SubgroupLadder)
+kind=12 name="Base.show" detail="function Base.show(io::IO, L::SubgroupLadder)" sel=284:9-284:18 range=284:0-295:3  | function Base.show(io::IO, L::SubgroupLadder)
+  kind=19 name="L" detail="::SubgroupLadder" sel=284:27-284:28 range=284:27-284:28  | function Base.show(io::IO, L::SubgroupLadder)
+  kind=19 name="io" detail="::IO" sel=284:19-284:21 range=284:19-284:21  | function Base.show(io::IO, L::SubgroupLadder)
+kind=12 name="Base.size" detail="(L::SubgroupLadder) =" sel=303:8-303:17 range=303:7-303:53  | @inline Base.size(L::SubgroupLadder) =  size(data(L))
+  kind=19 name="L" detail="::SubgroupLadder" sel=303:18-303:19 range=303:18-303:19  | @inline Base.size(L::SubgroupLadder) =  size(data(L))
+kind=12 name="Base.length" detail="(L::SubgroupLadder) =" sel=304:8-304:19 range=304:7-304:56  | @inline Base.length(L::SubgroupLadder) = length(data(L))
+  kind=19 name="L" detail="::SubgroupLadder" sel=304:20-304:21 range=304:20-304:21  | @inline Base.length(L::SubgroupLadder) = length(data(L))
+kind=12 name="Base.firstindex" detail="(L::SubgroupLadder) =" sel=305:8-305:23 range=305:7-305:46  | @inline Base.firstindex(L::SubgroupLadder) = 1
+  kind=19 name="L" detail="::SubgroupLadder" sel=305:24-305:25 range=305:24-305:25  | @inline Base.firstindex(L::SubgroupLadder) = 1
+kind=12 name="Base.lastindex" detail="(L::SubgroupLadder) =" sel=306:8-306:22 range=306:7-306:53  | @inline Base.lastindex(L::SubgroupLadder) = length(L)
+  kind=19 name="L" detail="::SubgroupLadder" sel=306:23-306:24 range=306:23-306:24  | @inline Base.lastindex(L::SubgroupLadder) = length(L)
+kind=12 name="Base.getindex" detail="(L::SubgroupLadder, i::IntegerUnion) =" sel=307:8-307:21 range=307:7-307:85  | @inline Base.getindex(L::SubgroupLadder, i::IntegerUnion) = getindex(data(L), Int(i))
+  kind=19 name="i" detail="::IntegerUnion" sel=307:41-307:42 range=307:41-307:42  | @inline Base.getindex(L::SubgroupLadder, i::IntegerUnion) = getindex(data(L), Int(i))
+  kind=19 name="L" detail="::SubgroupLadder" sel=307:22-307:23 range=307:22-307:23  | @inline Base.getindex(L::SubgroupLadder, i::IntegerUnion) = getindex(data(L), Int(i))
+kind=12 name="Base.copy" detail="(L::SubgroupLadder) =" sel=308:8-308:17 range=308:7-308:68  | @inline Base.copy(L::SubgroupLadder) = SubgroupLadder(copy(data(L)))
+  kind=19 name="L" detail="::SubgroupLadder" sel=308:18-308:19 range=308:18-308:19  | @inline Base.copy(L::SubgroupLadder) = SubgroupLadder(copy(data(L)))

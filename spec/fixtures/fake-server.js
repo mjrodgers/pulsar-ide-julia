@@ -42,12 +42,20 @@ input.on("data", createParser((msg) => {
       return send({ id: msg.id, result: null });
     case "exit":
       return process.exit(0);
-    case "textDocument/documentSymbol": // one symbol: `greet`, defined on the first line of fixtures/hello.jl
+    case "textDocument/documentSymbol": { // shaped like JETLS: a function with `detail`, plus argument/local/block children
+      const r = (l1, c1, l2, c2) => ({ start: { line: l1, character: c1 }, end: { line: l2, character: c2 } });
       return send({ id: msg.id, result: [{
-        name: "greet", kind: 12,
-        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 37 } },
-        selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } },
+        name: "greet", kind: 12, detail: "function greet(name::String)",
+        range: r(0, 0, 0, 37), selectionRange: r(0, 0, 0, 5),
+        children: [
+          { name: "name", kind: 19, detail: "::String", range: r(0, 6, 0, 10), selectionRange: r(0, 6, 0, 10) },
+          { name: "msg", kind: 13, detail: "= name", range: r(0, 20, 0, 23), selectionRange: r(0, 20, 0, 23) },
+          { name: " ", kind: 3, detail: "for x in y", range: r(0, 4, 0, 30), selectionRange: r(0, 7, 0, 14), children: [
+            { name: "x", kind: 13, detail: "for x in y", range: r(0, 8, 0, 9), selectionRange: r(0, 8, 0, 9) },
+          ] },
+        ],
       }] });
+    }
     case "textDocument/didOpen":
       return send({ method: "textDocument/publishDiagnostics", params: {
         uri: msg.params.textDocument.uri,

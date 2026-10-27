@@ -1,0 +1,26 @@
+kind=2 name="Oscar" detail="module Oscar" sel=19:7-19:12 range=19:0-341:3  | module Oscar
+  kind=12 name="windows_error" detail="() =" sel=32:0-32:13 range=32:0-37:8  | windows_error() = error("""
+  kind=12 name="_print_banner" detail="function _print_banner(;is_dev = Oscar.is_dev)" sel=47:9-47:22 range=47:0-69:3  | function _print_banner(;is_dev = Oscar.is_dev)
+    kind=13 name="gitinfo" detail="= _get_oscar_git_info()" sel=51:4-51:11 range=51:4-51:11  | gitinfo = _get_oscar_git_info()
+    kind=19 name="is_dev" detail="= Oscar.is_dev" sel=47:24-47:30 range=47:24-47:30  | function _print_banner(;is_dev = Oscar.is_dev)
+    kind=13 name="version_string" detail="= string(VERSION_NUMBER)" sel=49:2-49:16 range=49:2-49:16  | version_string = string(VERSION_NUMBER)
+  kind=12 name="__init__" detail="function __init__()" sel=71:9-71:17 range=71:0-217:3  | function __init__()
+    kind=3 name=" " detail="for pkg in [\n     \"OscarInterface\", # contains all GAP code that is part of Oscar\n     \"atlasrep\",\n     \"browse\",   # needed for all_character_table_names doctest\n     \"ctbllib\",  # character tables\n     \"crisp\",    # faster normal subgroups, socles, p-socles for finite solvable groups\n     \"ferret\",   # backtrack in permutation groups\n     \"fga\",      # dealing with free groups\n     \"forms\",    # bilinear/sesquilinear/quadratic forms\n     \"packagemanager\", # has been loaded already by GAP.jl\n     \"polycyclic\", # needed for Oscar's pc groups\n     \"perfgrp\",  # perfect groups library\n     \"primgrp\",  # primitive groups library\n     \"recog\",    # group recognition\n     \"repsn\",    # constructing representations of finite groups\n     \"smallclassnr\", # library of groups with few conjugacy classes\n     \"smallgrp\", # small groups library\n     \"transgrp\", # transitive groups library\n     \"wedderga\", # provides a function to compute Schur indices\n     ]" sel=100:5-119:6 range=100:2-121:5  | for pkg in [
+      kind=13 name="pkg" detail="for pkg in [\n     \"OscarInterface\", # contains all GAP code that is part of Oscar\n     \"atlasrep\",\n     \"browse\",   # needed for all_character_table_names doctest\n     \"ctbllib\",  # character tables\n     \"crisp\",    # faster normal subgroups, socles, p-socles for finite solvable groups\n     \"ferret\",   # backtrack in permutation groups\n     \"fga\",      # dealing with free groups\n     \"forms\",    # bilinear/sesquilinear/quadratic forms\n     \"packagemanager\", # has been loaded already by GAP.jl\n     \"polycyclic\", # needed for Oscar's pc groups\n     \"perfgrp\",  # perfect groups library\n     \"primgrp\",  # primitive groups library\n     \"recog\",    # group recognition\n     \"repsn\",    # constructing representations of finite groups\n     \"smallclassnr\", # library of groups with few conjugacy classes\n     \"smallgrp\", # small groups library\n     \"transgrp\", # transitive groups library\n     \"wedderga\", # provides a function to compute Schur indices\n     ]" sel=100:6-100:9 range=100:6-100:9  | for pkg in [
+  kind=14 name="VERSION_NUMBER" detail="const VERSION_NUMBER = Base.pkgversion(@__MODULE__)" sel=219:6-219:20 range=219:0-219:51  | const VERSION_NUMBER = Base.pkgversion(@__MODULE__)
+  kind=14 name="PROJECT_UUID" detail="const PROJECT_UUID = Base.PkgId(@__MODULE__).uuid" sel=220:6-220:18 range=220:0-220:49  | const PROJECT_UUID = Base.PkgId(@__MODULE__).uuid
+  kind=14 name="is_dev" detail="const is_dev = occursin(\"-dev\", lowercase(string(VERSION_NUMBER)))" sel=222:6-222:12 range=222:0-222:66  | const is_dev = occursin("-dev", lowercase(string(VERSION_NUMBER)))
+  kind=14 name="oscardir" detail="const oscardir = Base.pkgdir(Oscar)" sel=224:6-224:14 range=224:0-224:35  | const oscardir = Base.pkgdir(Oscar)
+  kind=12 name="example" detail="function example(s::String)" sel=226:9-226:16 range=226:0-228:3  | function example(s::String)
+    kind=19 name="s" detail="::String" sel=226:17-226:18 range=226:17-226:18  | function example(s::String)
+  kind=12 name="@example" detail="macro example(s)" sel=239:6-239:13 range=239:0-241:3  | macro example(s)
+    kind=19 name="__module__" sel=239:6-239:16 range=239:6-239:16  | macro example(s)
+    kind=19 name="s" sel=239:14-239:15 range=239:14-239:15  | macro example(s)
+  kind=12 name="data" detail="function data(s::String)" sel=243:9-243:13 range=243:0-245:3  | function data(s::String)
+    kind=19 name="s" detail="::String" sel=243:14-243:15 range=243:14-243:15  | function data(s::String)
+  kind=12 name="revise" detail="function revise(s::String)" sel=247:9-247:15 range=247:0-250:3  | function revise(s::String)
+    kind=19 name="s" detail="::String" sel=247:16-247:17 range=247:16-247:17  | function revise(s::String)
+  kind=12 name="system" detail="function system(s::String)" sel=252:9-252:15 range=252:0-254:3  | function system(s::String)
+    kind=19 name="s" detail="::String" sel=252:16-252:17 range=252:16-252:17  | function system(s::String)
+  kind=12 name="build" detail="function build()" sel=256:9-256:14 range=256:0-258:3  | function build()
+  kind=2 name="ANTIC" detail="module ANTIC" sel=338:7-338:12 range=338:0-339:3  | module ANTIC

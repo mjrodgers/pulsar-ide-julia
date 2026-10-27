@@ -20,7 +20,8 @@
   ],
   "activationCommands": {
     "atom-workspace": [
-      "pulsar-ide-julia:restart-language-server"
+      "pulsar-ide-julia:restart-language-server",
+      "pulsar-ide-julia:dump-document-symbols"
     ]
   },
   "enhancedScopes": [

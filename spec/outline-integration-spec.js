@@ -24,17 +24,23 @@ describe("outline signatures", () => {
     await client.getConnectionForEditor(editor); // resolves once the server has initialized
   }));
 
-  it("shows the signature read from the definition line", reportErrors(async () => {
+  const labels = (trees) => trees.map((t) => [t.plainText, ...labels(t.children)]).flat();
+
+  it("labels functions with the signature JETLS sends and hides arguments and locals", reportErrors(async () => {
     const outline = await client.getOutline(editor);
-    const tree = outline && outline.outlineTrees && outline.outlineTrees[0];
-    if (!tree || tree.plainText !== "greet(name::String)") fail(`unexpected outline: ${JSON.stringify(outline)}`);
-    expect(tree && tree.plainText).toBe("greet(name::String)");
+    expect(labels(outline.outlineTrees)).toEqual(["greet(name::String)"]);
+    expect(outline.outlineTrees[0].startPosition.row).toBe(0);
   }));
 
-  it("shows just the name when the setting is off", reportErrors(async () => {
+  it("lists arguments, locals and blocks when asked to", reportErrors(async () => {
+    atom.config.set("pulsar-ide-julia.outlineLocals", true);
+    const outline = await client.getOutline(editor);
+    expect(labels(outline.outlineTrees)).toEqual(["greet(name::String)", "for x in y", "x", "name", "msg"]);
+  }));
+
+  it("shows plain names when signatures are off", reportErrors(async () => {
     atom.config.set("pulsar-ide-julia.outlineSignatures", false);
     const outline = await client.getOutline(editor);
-    const tree = outline.outlineTrees[0];
-    expect(tree.plainText === undefined || !tree.plainText.includes("(")).toBe(true);
+    expect(labels(outline.outlineTrees)).toEqual(["greet"]);
   }));
 });
