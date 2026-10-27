@@ -1,4 +1,4 @@
-const { signatureFromLine, decorateOutline } = require("../lib/outline");
+const { signatureFromLine, decorateOutline, describeSymbols } = require("../lib/outline");
 
 describe("signatureFromLine", () => {
   const sig = (line, name, options) => signatureFromLine(line, name, options);
@@ -112,5 +112,51 @@ describe("decorateOutline", () => {
   it("passes through a missing or empty outline", () => {
     expect(decorateOutline(null, lineAt)).toBeNull();
     expect(decorateOutline({}, lineAt)).toEqual({});
+  });
+});
+
+describe("decorateOutline repeats", () => {
+  const source = ["function foo(x::Int)", "  x", "end", "function foo(x::Int)", "  x", "end", "foo(x::String) = x"];
+  const lineAt = (row) => source[row];
+  const tree = (row, children = []) => ({ representativeName: "foo", tokenizedText: [{ kind: "method", value: "foo" }], startPosition: { row, column: 9 }, children });
+  const texts = (trees) => trees.map((t) => t.plainText);
+
+  it("drops leaf children that point at their parent's own line", () => {
+    const out = decorateOutline({ outlineTrees: [tree(0, [tree(0), tree(0)])] }, lineAt);
+    expect(texts(out.outlineTrees)).toEqual(["foo(x::Int)"]);
+    expect(out.outlineTrees[0].children.length).toBe(0);
+  });
+
+  it("drops siblings that repeat the same line, but keeps different lines even with equal labels", () => {
+    const out = decorateOutline({ outlineTrees: [tree(0), tree(0), tree(3), tree(6)] }, lineAt);
+    expect(texts(out.outlineTrees)).toEqual(["foo(x::Int)", "foo(x::Int)", "foo(x::String)"]);
+  });
+
+  it("keeps children that have their own children", () => {
+    const out = decorateOutline({ outlineTrees: [tree(0, [tree(0, [tree(1)])])] }, lineAt);
+    expect(out.outlineTrees[0].children.length).toBe(1);
+  });
+});
+
+describe("describeSymbols", () => {
+  const r = (l1, c1, l2, c2) => ({ start: { line: l1, character: c1 }, end: { line: l2, character: c2 } });
+
+  it("lists a hierarchy with kinds, ranges and the source line", () => {
+    const out = describeSymbols(
+      [{ name: "foo", kind: 12, detail: "d", range: r(0, 0, 2, 3), selectionRange: r(0, 9, 0, 12),
+         children: [{ name: "x", kind: 13, range: r(1, 2, 1, 3), selectionRange: r(1, 2, 1, 3) }] }],
+      (row) => ["function foo(x)", "  x"][row]
+    );
+    const lines = out.split("\n");
+    expect(lines.length).toBe(2);
+    expect(lines[0]).toContain('kind=12 name="foo" detail="d" sel=0:9-0:12 range=0:0-2:3');
+    expect(lines[0]).toContain("| function foo(x)");
+    expect(lines[1].startsWith("  kind=13")).toBe(true);
+  });
+
+  it("handles SymbolInformation and empty input", () => {
+    const out = describeSymbols([{ name: "foo", kind: 12, containerName: "M", location: { range: r(3, 0, 4, 0) } }]);
+    expect(out).toContain('container="M" sel=3:0-4:0');
+    expect(describeSymbols(null)).toBe("");
   });
 });
