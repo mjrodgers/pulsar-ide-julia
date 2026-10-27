@@ -44,22 +44,33 @@
       "description": "Optional. Sets `JULIA_APPS_JULIA_CMD` for the server, so `jetls` runs with this Julia instead of the one that installed it. Must be Julia 1.12 or newer. Leave empty to use the installing Julia.",
       "order": 2
     },
+    "channel": {
+      "title": "Communication channel",
+      "type": "string",
+      "default": "pipe",
+      "enum": [
+        "pipe",
+        "stdio"
+      ],
+      "description": "`pipe` (default) talks to JETLS over a local socket, so anything the loaded code prints to stdout cannot corrupt the protocol. `stdio` uses stdin/stdout; JETLS's docs warn that a stray `println` or a package banner then breaks the connection.",
+      "order": 3
+    },
     "threads": {
-      "order": 3,
+      "order": 4,
       "title": "Julia threads",
       "type": "string",
       "default": "auto",
       "description": "Passed as `--threads=` to Julia. Use `auto`, a number, or `4,2` (default,interactive). Empty = Julia's default."
     },
     "defaultEnvironment": {
-      "order": 4,
+      "order": 5,
       "title": "Default environment",
       "type": "string",
       "default": "",
       "description": "Passed as `--project=`. Only affects files with no `Project.toml` above them (standalone scripts). Files inside a project always use that project's environment. Accepts a path, `~/path`, or `@name` for a shared environment."
     },
     "juliaFlags": {
-      "order": 5,
+      "order": 6,
       "title": "Extra Julia flags",
       "type": "array",
       "items": {
@@ -69,19 +80,19 @@
       "description": "Comma-separated Julia runtime flags placed before `--`, e.g. `--heap-size-hint=4G`."
     },
     "autoInstantiate": {
-      "order": 6,
+      "order": 7,
       "title": "Auto-instantiate environments",
       "type": "string",
       "default": "prompt",
+      "description": "What JETLS does when a file's environment needs instantiating (missing or outdated manifest, or packages not downloaded yet). `prompt` asks first (once per environment per session); `always` instantiates without asking, which can download packages, run build scripts and modify `Manifest.toml`; `never` leaves it untouched and shows a warning. Maps to `full_analysis.auto_instantiate`. Takes effect without a restart.",
       "enum": [
         "prompt",
         "always",
         "never"
-      ],
-      "description": "What JETLS does when a project's environment isn't instantiated. `prompt` asks first (once per environment per session); `always` may download packages and modify `Manifest.toml`. Maps to `full_analysis.auto_instantiate`. Takes effect without a restart."
+      ]
     },
     "debounce": {
-      "order": 7,
+      "order": 8,
       "title": "Analysis debounce (seconds)",
       "type": "number",
       "default": 1,
@@ -89,7 +100,7 @@
       "description": "Wait this long after a save before re-running full analysis (`full_analysis.debounce`)."
     },
     "formatter": {
-      "order": 8,
+      "order": 9,
       "title": "Formatter",
       "type": "string",
       "default": "Runic",
@@ -100,18 +111,25 @@
       "description": "Which formatter JETLS uses (`formatter`). For a custom formatter use the JSON field below."
     },
     "settingsJson": {
-      "order": 9,
+      "order": 10,
       "title": "Additional JETLS settings (JSON)",
       "type": "string",
       "default": "{}",
       "description": "A JSON object in the shape of `.JETLSConfig.toml`, merged over the settings above. Example: `{\"diagnostic\": {\"patterns\": [{\"pattern\": \"lowering/unused-argument\", \"match_by\": \"code\", \"match_type\": \"literal\", \"severity\": \"off\"}]}}`. A project's `.JETLSConfig.toml` still takes precedence."
     },
     "initializationOptionsJson": {
-      "order": 10,
+      "order": 11,
       "title": "Initialization options (JSON)",
       "type": "string",
       "default": "{}",
       "description": "Static JETLS options sent once at startup, e.g. `{\"n_analysis_workers\": 2}`. Changing this needs a server restart."
+    },
+    "outlineSignatures": {
+      "order": 12,
+      "title": "Signatures in the outline",
+      "type": "boolean",
+      "default": true,
+      "description": "Show each method's signature (read from its definition line) in the outline view, instead of just its name. Julia files often define one name many times."
     }
   },
   "consumedServices": {

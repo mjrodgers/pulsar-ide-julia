@@ -48,20 +48,45 @@ describe("launch helpers", () => {
   });
 
   describe("buildEnv", () => {
+    const delim = path.delimiter;
+
     it("sets JULIA_APPS_JULIA_CMD without mutating the input env", () => {
       const base = { PATH: "/bin" };
-      const env = buildEnv({ juliaPath: "/opt/julia/bin/julia", env: base });
-      expect(env).toEqual({ PATH: "/bin", JULIA_APPS_JULIA_CMD: "/opt/julia/bin/julia" });
+      const env = buildEnv({ juliaPath: "/opt/julia/bin/julia", env: base, homedir: "/home/u" });
+      expect(env.JULIA_APPS_JULIA_CMD).toBe("/opt/julia/bin/julia");
       expect(base).toEqual({ PATH: "/bin" });
     });
 
-    it("expands ~", () => {
+    it("expands ~ in the Julia path", () => {
       expect(buildEnv({ juliaPath: "~/julia/bin/julia", env: {}, homedir: "/home/u" }).JULIA_APPS_JULIA_CMD)
         .toBe(path.join("/home/u", "julia/bin/julia"));
     });
 
-    it("leaves the environment alone when no Julia path is set", () => {
-      expect(buildEnv({ juliaPath: "", env: { A: "1" } })).toEqual({ A: "1" });
+    it("does not set JULIA_APPS_JULIA_CMD when no Julia path is given", () => {
+      expect(buildEnv({ juliaPath: "", env: { A: "1" }, homedir: "/home/u" }).JULIA_APPS_JULIA_CMD).toBeUndefined();
+    });
+
+    it("appends the depot's bin directory to PATH when it is missing", () => {
+      const env = buildEnv({ env: { PATH: "/usr/bin" }, homedir: "/home/u" });
+      expect(env.PATH).toBe(["/usr/bin", path.join("/home/u", ".julia", "bin")].join(delim));
+    });
+
+    it("does not add it twice", () => {
+      const bin = path.join("/home/u", ".julia", "bin");
+      const env = buildEnv({ env: { PATH: ["/usr/bin", bin].join(delim) }, homedir: "/home/u" });
+      expect(env.PATH).toBe(["/usr/bin", bin].join(delim));
+    });
+
+    it("uses the first JULIA_DEPOT_PATH entry", () => {
+      const env = buildEnv({ env: { PATH: "/usr/bin", JULIA_DEPOT_PATH: ["/depot", "/other"].join(delim) }, homedir: "/home/u" });
+      expect(env.PATH).toBe(["/usr/bin", path.join("/depot", "bin")].join(delim));
+    });
+
+    it("creates PATH when there is none, and keeps the casing of an existing Path key", () => {
+      expect(buildEnv({ env: {}, homedir: "/home/u" }).PATH).toBe(path.join("/home/u", ".julia", "bin"));
+      const win = buildEnv({ env: { Path: "C:\\x" }, homedir: "/home/u" });
+      expect(win.Path).toContain("C:\\x");
+      expect(win.PATH).toBeUndefined();
     });
   });
 

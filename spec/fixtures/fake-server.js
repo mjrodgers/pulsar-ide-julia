@@ -33,7 +33,7 @@ input.on("data", createParser((msg) => {
   switch (msg.method) {
     case "initialize":
       return send({ id: msg.id, result: {
-        capabilities: { textDocumentSync: 1, hoverProvider: true },
+        capabilities: { textDocumentSync: 1, hoverProvider: true, documentSymbolProvider: true },
         serverInfo: { name: "fake-jetls" },
       } });
     case "initialized":
@@ -42,6 +42,12 @@ input.on("data", createParser((msg) => {
       return send({ id: msg.id, result: null });
     case "exit":
       return process.exit(0);
+    case "textDocument/documentSymbol": // one symbol: `greet`, defined on the first line of fixtures/hello.jl
+      return send({ id: msg.id, result: [{
+        name: "greet", kind: 12,
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 37 } },
+        selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } },
+      }] });
     case "textDocument/didOpen":
       return send({ method: "textDocument/publishDiagnostics", params: {
         uri: msg.params.textDocument.uri,
