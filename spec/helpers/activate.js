@@ -58,4 +58,4 @@ async function activateJulia() {
   }
 }
 
-module.exports = { activateJulia, packageRoot, grammarStub, ACTIVATION_HOOK };
+module.exports = { activateJulia, trace, packageRoot, grammarStub, ACTIVATION_HOOK };

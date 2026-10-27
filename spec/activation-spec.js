@@ -1,7 +1,8 @@
 // Activates the package against a fake server (no Julia needed). Jasmine 2 style.
 // `startServerProcess` is stubbed AFTER activation and BEFORE a file is opened.
 const path = require("path");
-const { activateJulia } = require("./helpers/activate");
+const { activateJulia, trace } = require("./helpers/activate");
+const { useTimeout } = require("./helpers/timeout");
 const { deferred } = require("./helpers/deferred");
 
 const fixtures = path.join(__dirname, "fixtures");
@@ -11,6 +12,8 @@ const SLOW = 20000;
 describe("activation", () => {
   let client;
 
+  useTimeout(SLOW);
+
   const useFakeServer = () =>
     spyOn(client, "startServerProcess").and.callFake((projectPath) =>
       client.spawnChildNode([fakeServer], { cwd: projectPath }));
@@ -18,7 +21,7 @@ describe("activation", () => {
   beforeEach(async () => {
     atom.project.setPaths([fixtures]);
     client = await activateJulia();
-  }, SLOW);
+  });
 
   it("registers the restart command", () => {
     const names = atom.commands.findCommands({ target: atom.views.getView(atom.workspace) }).map((c) => c.name);
@@ -32,8 +35,9 @@ describe("activation", () => {
       return client.spawnChildNode([fakeServer], { cwd: projectPath });
     });
     await atom.workspace.open(path.join(fixtures, "hello.jl"));
-    expect(await started.promise).toBe(fixtures);
-  }, SLOW);
+    // The fork hands over the root with a trailing separator; compare resolved paths.
+    expect(path.resolve(await started.promise)).toBe(path.resolve(fixtures));
+  });
 
   it("answers the server's workspace/configuration request from Pulsar settings", async () => {
     atom.config.set("pulsar-ide-julia.formatter", "JuliaFormatter");
@@ -44,17 +48,20 @@ describe("activation", () => {
     const answered = deferred();
     const original = client.getWorkspaceConfiguration.bind(client);
     spyOn(client, "getWorkspaceConfiguration").and.callFake(async (params) => {
+      trace(`server asked for configuration: ${JSON.stringify(params)}`);
       const result = await original(params);
+      trace(`answered with: ${JSON.stringify(result)}`);
       answered.resolve({ params, result });
       return result;
     });
     useFakeServer();
 
+    trace("opening hello.jl; waiting for the fake server to ask for configuration");
     await atom.workspace.open(path.join(fixtures, "hello.jl"));
     const { params, result } = await answered.promise;
     expect(params.items[0].section).toBe("jetls");
     expect(result).toEqual([{ full_analysis: { debounce: 2.5 }, formatter: "JuliaFormatter" }]);
-  }, SLOW);
+  });
 
   it("resolves workspace/configuration sections from Pulsar settings", async () => {
     atom.config.set("pulsar-ide-julia.formatter", "JuliaFormatter");

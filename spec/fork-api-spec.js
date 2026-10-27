@@ -2,6 +2,7 @@
 // relies on (verified against its auto-languageclient.ts / languageclient.ts).
 const path = require("path");
 const { activateJulia } = require("./helpers/activate");
+const { useTimeout } = require("./helpers/timeout");
 
 const fixtures = path.join(__dirname, "fixtures");
 const fakeServer = path.join(fixtures, "fake-server.js");
@@ -10,10 +11,12 @@ const SLOW = 20000;
 describe("atom-languageclient fork API", () => {
   let client;
 
+  useTimeout(SLOW);
+
   beforeEach(async () => {
     atom.project.setPaths([fixtures]);
     client = await activateJulia();
-  }, SLOW);
+  });
 
   for (const name of [
     "restartAllServers", "spawn", "spawnChildNode", "getInitializeParams",
@@ -34,5 +37,5 @@ describe("atom-languageclient fork API", () => {
     await atom.workspace.open(path.join(fixtures, "hello.jl"));
     const connection = await client.getConnectionForEditor(atom.workspace.getActiveTextEditor());
     expect(typeof connection.onWorkspaceConfiguration).toBe("function");
-  }, SLOW);
+  });
 });

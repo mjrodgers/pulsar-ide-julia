@@ -14,6 +14,7 @@
   "scripts": {
     "test": "pulsar --test spec"
   },
+  "atomTestRunner": "runners/jasmine2-test-runner",
   "activationHooks": [
     "source.julia:root-scope-used"
   ],
