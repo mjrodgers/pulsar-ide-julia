@@ -47,6 +47,13 @@ describe("findProjectDir", () => {
 describe("buildReplCommand", () => {
   const build = (o) => buildReplCommand({ platform: "linux", homedir: "/home/u", ...o });
 
+  it("loads the workspace helper's startup file with -L, before any extra flags", () => {
+    expect(build({ loadFile: "/tmp/ws file.jl", projectDir: "/work/P", flags: "--color=yes" }))
+      .toBe("julia --project=/work/P -L '/tmp/ws file.jl' --color=yes");
+    expect(build({ loadFile: "/tmp/ws.jl" })).toBe("julia -L /tmp/ws.jl");
+    expect(build({ platform: "win32", loadFile: "C:\\Temp\\a b.jl" })).toBe('julia -L "C:\\Temp\\a b.jl"');
+  });
+
   it("defaults to plain julia", () => {
     expect(build({})).toBe("julia");
   });

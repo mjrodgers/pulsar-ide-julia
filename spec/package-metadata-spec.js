@@ -36,7 +36,7 @@ describe("package metadata", () => {
 
   it("declares a default for every debugger setting the controller reads", () => {
     const schema = readJson("package.json").configSchema;
-    const read = ["debugJuliaPath", "debugEnvironment", "debugThreads", "debugFlags", "debugStopOnEntry", "debugLaunchArgumentsJson", "debugExceptionFilters", "debugOpenWorkspace", "debugOpenOutput", "debugProgramArguments", "debugCompiledMode", "debugCompiledModules"];
+    const read = ["debugJuliaPath", "debugEnvironment", "debugThreads", "debugFlags", "debugStopOnEntry", "debugLaunchArgumentsJson", "debugExceptionFilters", "debugOpenWorkspace", "debugOpenOutput", "debugProgramArguments", "debugCompiledMode", "debugCompiledModules", "replWorkspace"];
     for (const key of read) expect(schema[key] && "default" in schema[key]).toBe(true);
   });
 });

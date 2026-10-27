@@ -26,7 +26,10 @@ describe("terminal REPL", () => {
 
   it("registers its commands", () => {
     const names = atom.commands.findCommands({ target: atom.views.getView(atom.workspace) }).map((c) => c.name);
-    for (const c of ["open-repl", "send-selection-or-definition", "send-cell", "send-cell-and-advance", "send-file", "activate-environment", "next-cell", "previous-cell"]) {
+    for (const c of ["open-repl", "send-selection-or-definition", "send-cell", "send-cell-and-advance", "send-file", "activate-environment", "next-cell", "previous-cell",
+      "send-selection-or-definition-and-advance", "activate-environment-in-current-folder", "activate-environment-in-parent-folder",
+      "activate-default-environment", "select-environment", "work-in-current-folder", "work-in-project-folder", "work-in-home-folder",
+      "select-working-folder"]) {
       expect(names).toContain(`pulsar-ide-julia:${c}`);
     }
   });
@@ -36,6 +39,7 @@ describe("terminal REPL", () => {
     const bound = atom.keymaps.findKeyBindings({ target: atom.views.getView(editor) }).map((b) => b.command);
     expect(bound).toContain("pulsar-ide-julia:send-selection-or-definition");
     expect(bound).toContain("pulsar-ide-julia:send-cell");
+    expect(bound).toContain("pulsar-ide-julia:send-selection-or-definition-and-advance");
   }));
 
   it("starts Julia in a new terminal", reportErrors(async () => {

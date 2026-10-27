@@ -27,7 +27,16 @@
       "pulsar-ide-julia:send-cell",
       "pulsar-ide-julia:send-cell-and-advance",
       "pulsar-ide-julia:send-file",
+      "pulsar-ide-julia:send-selection-or-definition-and-advance",
       "pulsar-ide-julia:activate-environment",
+      "pulsar-ide-julia:activate-environment-in-current-folder",
+      "pulsar-ide-julia:activate-environment-in-parent-folder",
+      "pulsar-ide-julia:activate-default-environment",
+      "pulsar-ide-julia:select-environment",
+      "pulsar-ide-julia:work-in-current-folder",
+      "pulsar-ide-julia:work-in-project-folder",
+      "pulsar-ide-julia:work-in-home-folder",
+      "pulsar-ide-julia:select-working-folder",
       "pulsar-ide-julia:next-cell",
       "pulsar-ide-julia:previous-cell",
       "pulsar-ide-julia:debug-start-or-continue",
@@ -297,6 +306,20 @@
       },
       "description": "Modules or functions to run compiled, e.g. `Base`, `LinearAlgebra`. Passed as `compiledModulesOrFunctions`.",
       "order": 31
+    },
+    "replWorkspace": {
+      "title": "REPL: show variables in the workspace pane",
+      "type": "boolean",
+      "default": true,
+      "description": "Start the REPL with a small helper (julia/workspace.jl in this package) that reports the variables of `Main` to the Julia Workspace pane over a local socket. Read-only; needs Julia 1.9 or newer.",
+      "order": 32
+    },
+    "workspaceModule": {
+      "title": "REPL: module shown in the workspace pane",
+      "type": "string",
+      "default": "Main",
+      "description": "The module whose variables the workspace pane lists for the REPL, such as `Main` or `Main.MyPackage`. The pane's module menu sets this; the special value `@follow` shows the module around the cursor in the active Julia editor.",
+      "order": 33
     }
   },
   "consumedServices": {
@@ -394,4 +417,4 @@
       }
     }
   }
-  }
+}

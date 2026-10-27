@@ -37,11 +37,11 @@ function fakeEditor({ text, filePath = null, cursor = [0, 0], selection = null, 
   return ed;
 }
 
-function setup({ editor, settings = {}, symbols = null, symbolsError = null } = {}) {
+function setup({ editor, settings = {}, symbols = null, symbolsError = null, bridge = undefined, deps = {} } = {}) {
   const log = { open: 0, runs: [], notes: [], dispatched: [] };
   const service = { open: async () => { log.open++; }, run: async (cmds) => { log.runs.push(cmds); return true; } };
   const notifications = new Proxy({}, { get: (_, kind) => (msg) => log.notes.push([kind, msg]) });
-  const values = { replJuliaPath: "", replThreads: "", replEnvironment: "", replFlags: "", replSendVia: "service", replBracketedPaste: false, ...settings };
+  const values = { replJuliaPath: "", replThreads: "", replEnvironment: "", replFlags: "", replSendVia: "service", replBracketedPaste: false, replWorkspace: true, ...settings };
   const repl = new ReplController({
     setting: (k) => values[k],
     workspace: { getActiveTextEditor: () => editor },
@@ -49,10 +49,40 @@ function setup({ editor, settings = {}, symbols = null, symbolsError = null } = 
     views: { getView: (e) => ({ view: e }) },
     notifications,
     fetchSymbols: async () => { if (symbolsError) throw symbolsError; return symbols; },
+    bridge,
+    ...deps,
   });
   repl.setService(service);
   return { repl, log, service };
 }
+
+describe("ReplController and the workspace bridge", () => {
+  const editor = fakeEditor({ text: "x = 1", filePath: null });
+
+  it("starts Julia with the helper's startup file", async () => {
+    const bridge = { prepare: async () => ({ loadFile: "/tmp/ws.jl" }) };
+    const { repl, log } = setup({ editor, bridge });
+    await repl.openRepl(editor);
+    expect(log.runs[0][0]).toBe("julia -L /tmp/ws.jl");
+  });
+
+  it("leaves the helper out when the setting is off", async () => {
+    let called = 0;
+    const bridge = { prepare: async () => { called++; return { loadFile: "/tmp/ws.jl" }; } };
+    const { repl, log } = setup({ editor, bridge, settings: { replWorkspace: false } });
+    await repl.openRepl(editor);
+    expect(called).toBe(0);
+    expect(log.runs[0][0]).toBe("julia");
+  });
+
+  it("still starts the REPL, with a warning, when the bridge cannot be prepared", async () => {
+    const bridge = { prepare: async () => { throw new Error("EADDRINUSE"); } };
+    const { repl, log } = setup({ editor, bridge });
+    expect(await repl.openRepl(editor)).toBe(true);
+    expect(log.runs[0][0]).toBe("julia");
+    expect(log.notes.some(([kind, msg]) => kind === "addWarning" && /EADDRINUSE/.test(msg))).toBe(true);
+  });
+});
 
 describe("ReplController", () => {
   it("opens a terminal and starts Julia in it", async () => {
@@ -137,6 +167,57 @@ describe("ReplController", () => {
     });
   });
 
+  describe("sending and advancing", () => {
+    const text = "x = 1\n\n# a comment\nfunction f(a)\n    a + 1\nend\n\n    y = 2\n# last";
+    const symbols = [{ name: "f", kind: 12, range: { start: { line: 3, character: 0 }, end: { line: 5, character: 3 } } }];
+
+    it("moves to the next line of code after a line", async () => {
+      const editor = fakeEditor({ text, cursor: [0, 3] });
+      const { repl, log } = setup({ editor, symbols });
+      await repl.sendSelectionOrDefinition({ advance: true });
+      expect(log.runs[1]).toEqual(["x = 1"]);
+      expect(editor.cursor).toEqual({ row: 3, column: 0 });
+    });
+
+    it("moves past a whole definition, to the first character of the next line", async () => {
+      const editor = fakeEditor({ text, cursor: [4, 2] });
+      const { repl, log } = setup({ editor, symbols });
+      await repl.sendSelectionOrDefinition({ advance: true });
+      expect(log.runs[1]).toEqual(["function f(a)", "    a + 1", "end"]);
+      expect(editor.cursor).toEqual({ row: 7, column: 4 });
+    });
+
+    it("moves past a selection, also one that ends at the start of a line", async () => {
+      const editor = fakeEditor({ text, selection: [[3, 0], [6, 0]] });
+      const { repl, log } = setup({ editor });
+      await repl.sendSelectionOrDefinition({ advance: true });
+      expect(log.runs[1]).toEqual(["function f(a)", "    a + 1", "end"]);
+      expect(editor.cursor).toEqual({ row: 7, column: 4 });
+    });
+
+    it("stays put after the last line of code", async () => {
+      const editor = fakeEditor({ text, cursor: [7, 6] });
+      const { repl } = setup({ editor, symbols });
+      await repl.sendSelectionOrDefinition({ advance: true });
+      expect(editor.cursor).toEqual({ row: 7, column: 6 });
+    });
+
+    it("moves on from an empty line without sending it", async () => {
+      const editor = fakeEditor({ text, cursor: [1, 0] });
+      const { repl, log } = setup({ editor, symbols });
+      await repl.sendSelectionOrDefinition({ advance: true });
+      expect(log.runs).toEqual([]);
+      expect(editor.cursor).toEqual({ row: 3, column: 0 });
+    });
+
+    it("does not move without `advance`", async () => {
+      const editor = fakeEditor({ text, cursor: [0, 3] });
+      const { repl } = setup({ editor, symbols });
+      await repl.sendSelectionOrDefinition();
+      expect(editor.cursor).toEqual({ row: 0, column: 3 });
+    });
+  });
+
   describe("cells", () => {
     const text = "## one\nx = 1\n\n## two\ny = 2\nz = 3\n\n## three\nw = 4";
 
@@ -197,6 +278,99 @@ describe("ReplController", () => {
       await b.repl.activateEnvironment();
       expect(b.log.notes[0][0]).toBe("addWarning");
       expect(b.log.runs).toEqual([]);
+    });
+  });
+
+  describe("working folder and environments", () => {
+    const sent = (log) => log.runs[log.runs.length - 1];
+
+    it("works in the folder of the file", async () => {
+      const { repl, log } = setup({ editor: fakeEditor({ text: "", filePath: "/w/pkg/src/a.jl" }) });
+      await repl.workInCurrentFolder();
+      expect(sent(log)).toEqual(['cd(raw"/w/pkg/src")']);
+    });
+
+    it("asks for a saved file when there is no folder yet", async () => {
+      const { repl, log } = setup({ editor: fakeEditor({ text: "", filePath: null }) });
+      await repl.workInCurrentFolder();
+      await repl.activateEnvironmentInCurrentFolder();
+      expect(log.runs).toEqual([]);
+      expect(log.notes.map((n) => n[0])).toEqual(["addWarning", "addWarning"]);
+    });
+
+    it("works in Pulsar's project folder for the file, or says it has none", async () => {
+      const editor = fakeEditor({ text: "", filePath: "/w/pkg/src/a.jl" });
+      const a = setup({ editor, deps: { projectRoot: (f) => (f.startsWith("/w/pkg") ? "/w/pkg" : null) } });
+      await a.repl.workInProjectFolder();
+      expect(sent(a.log)).toEqual(['cd(raw"/w/pkg")']);
+      const b = setup({ editor, deps: { projectRoot: () => null } });
+      await b.repl.workInProjectFolder();
+      expect(b.log.runs).toEqual([]);
+      expect(b.log.notes[0][0]).toBe("addWarning");
+    });
+
+    it("works in the home folder", async () => {
+      const { repl, log } = setup({ editor: fakeEditor({ text: "" }) });
+      await repl.workInHomeFolder();
+      expect(sent(log)).toEqual(["cd()"]);
+    });
+
+    it("works in a folder the user picks, or nothing if they cancel", async () => {
+      const editor = fakeEditor({ text: "" });
+      const a = setup({ editor, deps: { pickFolder: async () => "/data/run 1" } });
+      await a.repl.selectWorkingFolder();
+      expect(sent(a.log)).toEqual(['cd(raw"/data/run 1")']);
+      const b = setup({ editor, deps: { pickFolder: async () => null } });
+      await b.repl.selectWorkingFolder();
+      expect(b.log.runs).toEqual([]);
+    });
+
+    it("activates the environment of the file's folder or of its parent", async () => {
+      const editor = fakeEditor({ text: "", filePath: "/w/pkg/test/a.jl" });
+      const { repl, log } = setup({ editor });
+      await repl.activateEnvironmentInCurrentFolder();
+      expect(sent(log)).toEqual(['import Pkg; Pkg.activate(raw"/w/pkg/test")']);
+      await repl.activateEnvironmentInParentFolder();
+      expect(sent(log)).toEqual(['import Pkg; Pkg.activate(raw"/w/pkg")']);
+    });
+
+    it("activates the default environment", async () => {
+      const { repl, log } = setup({ editor: fakeEditor({ text: "" }) });
+      await repl.activateDefaultEnvironment();
+      expect(sent(log)).toEqual(["import Pkg; Pkg.activate()"]);
+    });
+
+    describe("shared environments", () => {
+      let depot, saved;
+      beforeEach(() => {
+        depot = fs.mkdtempSync(path.join(os.tmpdir(), "repl-depot-"));
+        saved = process.env.JULIA_DEPOT_PATH;
+        process.env.JULIA_DEPOT_PATH = depot;
+      });
+      afterEach(() => {
+        if (saved === undefined) delete process.env.JULIA_DEPOT_PATH; else process.env.JULIA_DEPOT_PATH = saved;
+        fs.rmSync(depot, { recursive: true, force: true });
+      });
+
+      it("activates the one the user picks", async () => {
+        for (const name of ["v1.11", "plots"]) {
+          fs.mkdirSync(path.join(depot, "environments", name), { recursive: true });
+          fs.writeFileSync(path.join(depot, "environments", name, "Project.toml"), "");
+        }
+        let offered;
+        const { repl, log } = setup({ editor: fakeEditor({ text: "" }), deps: { pick: async (items) => { offered = items; return "plots"; } } });
+        await repl.selectEnvironment();
+        expect(offered).toEqual(["plots", "v1.11"]);
+        expect(sent(log)).toEqual(['import Pkg; Pkg.activate(raw"plots"; shared=true)']);
+      });
+
+      it("says so when there are none", async () => {
+        let asked = false;
+        const { repl, log } = setup({ editor: fakeEditor({ text: "" }), deps: { pick: async () => { asked = true; return null; } } });
+        await repl.selectEnvironment();
+        expect(asked).toBe(false);
+        expect(log.notes[0][0]).toBe("addInfo");
+      });
     });
   });
 

@@ -18,7 +18,9 @@ atom-text-editor .highlight.pulsar-ide-julia-sent .region {
     padding: @component-padding / 2 @component-padding;
     border-bottom: 1px solid @base-border-color;
 
-    .status { color: @text-color-subtle; margin-bottom: @component-padding / 2; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: @component-padding; margin-bottom: @component-padding / 2; }
+    .status { color: @text-color-subtle; }
+    .refresh.hidden { display: none; }
     .frames, .filter { width: 100%; margin-bottom: @component-padding / 2; }
     .hidden { display: none; }
   }

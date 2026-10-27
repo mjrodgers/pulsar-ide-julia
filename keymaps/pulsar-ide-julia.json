@@ -1,6 +1,7 @@
 {
   "atom-text-editor[data-grammar~='julia']": {
     "ctrl-enter": "pulsar-ide-julia:send-selection-or-definition",
+    "shift-enter": "pulsar-ide-julia:send-selection-or-definition-and-advance",
     "ctrl-shift-enter": "pulsar-ide-julia:send-file",
     "alt-enter": "pulsar-ide-julia:send-cell",
     "alt-shift-enter": "pulsar-ide-julia:send-cell-and-advance",
