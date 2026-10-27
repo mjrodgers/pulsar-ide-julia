@@ -130,7 +130,14 @@
       "title": "Signatures in the outline",
       "type": "boolean",
       "default": true,
-      "description": "Show each method's signature (read from its definition line) in the outline view, instead of just its name. Julia files often define one name many times."
+      "description": "Label entries in the outline view with what JETLS reports about them, instead of just their name: function signatures, struct headers (`FunctionTest{F} <: AbstractTestFunction`) and field types. Julia code often defines one name many times."
+    },
+    "outlineLocals": {
+      "order": 13,
+      "title": "Arguments and locals in the outline",
+      "type": "boolean",
+      "default": false,
+      "description": "Also list each function's arguments, local variables and loop blocks in the outline view. Off keeps the outline to functions, types and top-level definitions."
     }
   },
   "consumedServices": {
