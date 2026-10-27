@@ -1,0 +1,24 @@
+{
+  "atom-text-editor[data-grammar~='julia']": {
+    "ctrl-enter": "pulsar-ide-julia:send-selection-or-definition",
+    "ctrl-shift-enter": "pulsar-ide-julia:send-file",
+    "alt-enter": "pulsar-ide-julia:send-cell",
+    "alt-shift-enter": "pulsar-ide-julia:send-cell-and-advance",
+    "alt-up": "pulsar-ide-julia:previous-cell",
+    "alt-down": "pulsar-ide-julia:next-cell",
+    "f5": "pulsar-ide-julia:debug-start-or-continue",
+    "ctrl-f5": "pulsar-ide-julia:debug-file",
+    "f9": "pulsar-ide-julia:toggle-breakpoint",
+    "shift-f5": "pulsar-ide-julia:debug-stop",
+    "f10": "pulsar-ide-julia:debug-step-over",
+    "f11": "pulsar-ide-julia:debug-step-in",
+    "shift-f11": "pulsar-ide-julia:debug-step-out"
+  },
+  ".pulsar-ide-julia-workspace": {
+    "f5": "pulsar-ide-julia:debug-start-or-continue",
+    "shift-f5": "pulsar-ide-julia:debug-stop",
+    "f10": "pulsar-ide-julia:debug-step-over",
+    "f11": "pulsar-ide-julia:debug-step-in",
+    "shift-f11": "pulsar-ide-julia:debug-step-out"
+  }
+}
