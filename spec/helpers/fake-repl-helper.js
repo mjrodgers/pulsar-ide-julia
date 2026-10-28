@@ -66,6 +66,13 @@ class FakeHelper {
     if (op === "modules") {
       return this.send({ id, ok: true, names: this.moduleNames || ["Main", "Main.Base", "Main.Foo", "Main.Foo.Bar"] });
     }
+    if (op === "eval") {
+      if (this.options && this.options.failEval) return this.send({ id, ok: false, error: "cannot evaluate this request" });
+      if (this.options && this.options.silentEval) return undefined;
+      this.evals = this.evals || [];
+      this.evals.push(Number(arg));
+      return this.send({ id, ok: true, items: [] });
+    }
     if (op === "ping") return this.send({ id, ok: true, items: [] });
     return this.send({ id, ok: false, error: `unknown request '${op}'` });
   }

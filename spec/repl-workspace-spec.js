@@ -3,7 +3,7 @@ const net = require("net");
 const os = require("os");
 const path = require("path");
 const { EventEmitter } = require("events");
-const { startFakeHelper } = require("./helpers/fake-repl-helper");
+const { startFakeHelper, FakeHelper } = require("./helpers/fake-repl-helper");
 const { fakeDocument } = require("./helpers/fake-dom");
 const { ReplWorkspaceSource } = require("../lib/workspace/repl-source");
 const { ReplBridge, bootstrapSource } = require("../lib/workspace/repl-bridge");
@@ -301,6 +301,26 @@ describe("ReplBridge", () => {
     expect(text).toContain('Main.var"#PulsarIDEWorkspace".start(raw"');
   });
 
+  it("uses the same startup file every time in a private directory, so the terminal command stays the same", async () => {
+    const own = new ReplBridge({ helper: "/pkg/julia/workspace.jl", tmpdir: dir, startupDir: path.join(dir, "config", "pkg") });
+    try {
+      const first = (await own.prepare()).loadFile;
+      expect(first).toBe(path.join(dir, "config", "pkg", "workspace.jl"));
+      expect(fs.readFileSync(first, "utf8")).toContain(own.address);
+      const firstAddress = own.address;
+      const second = (await own.prepare()).loadFile;
+      expect(second).toBe(first);
+      expect(fs.readFileSync(second, "utf8")).toContain(own.address);
+      expect(fs.readFileSync(second, "utf8")).not.toContain(firstAddress);
+      const socket = net.connect(own.address);
+      await until(() => own.source, "connection");
+      expect(fs.existsSync(second)).toBe(false);
+      socket.destroy();
+    } finally {
+      own.dispose();
+    }
+  });
+
   it("escapes quotes in paths for the Julia string literal", () => {
     expect(bootstrapSource('/a"b/w.jl', "/p")).toContain('raw"/a\\"b/w.jl"');
   });
@@ -310,15 +330,58 @@ describe("ReplBridge", () => {
   });
 
   describe("code for the REPL to evaluate", () => {
-    it("writes the request and returns the short call to type", async () => {
+    it("writes the request and returns its id", async () => {
       expect(bridge.canEval()).toBe(false);
       await bridge.prepare();
       expect(bridge.canEval()).toBe(true);
       const call = bridge.writeEval({ module: "Main.Foo", file: "/w/a.jl", line: 12, code: "x = 1\r\ny = 2" });
-      expect(call).toBe("__pulsar_eval__(1)");
+      expect(call).toBe(1);
       expect(fs.readFileSync(path.join(bridge.evalDir, "1.jl"), "utf8")).toBe("Main.Foo\n/w/a.jl\n12\nx = 1\ny = 2");
-      expect(bridge.writeEval({ code: "z" })).toBe("__pulsar_eval__(2)");
+      expect(bridge.writeEval({ code: "z" })).toBe(2);
       expect(fs.readFileSync(path.join(bridge.evalDir, "2.jl"), "utf8")).toBe("Main\n\n1\nz");
+    });
+
+    describe("handing the code to a connected helper", () => {
+      let socket, helper;
+      beforeEach(async () => {
+        await bridge.prepare();
+        socket = net.connect(bridge.address);
+        helper = new FakeHelper(socket);
+        await until(() => bridge.source, "the helper's connection");
+      });
+      afterEach(() => socket.destroy());
+
+      it("queues the request in the helper", async () => {
+        await bridge.evalCode({ module: "Main.Foo", file: "/w/a.jl", line: 4, code: "x = 1" });
+        expect(helper.evals).toEqual([1]);
+        expect(helper.requests.filter((r) => r.op === "eval")).toEqual([{ id: helper.requests.find((r) => r.op === "eval").id, op: "eval", arg: "1" }]);
+        expect(fs.existsSync(path.join(bridge.evalDir, "1.jl"))).toBe(true);
+      });
+
+      it("rejects, and removes the file, when the helper refuses", async () => {
+        helper.options = { failEval: true };
+        let error = null;
+        try { await bridge.evalCode({ code: "x = 1" }); } catch (e) { error = e; }
+        expect(error).not.toBe(null);
+        expect(error.code).toBeUndefined();
+        expect(fs.existsSync(path.join(bridge.evalDir, "1.jl"))).toBe(false);
+      });
+
+      it("rejects with a timeout code, keeping the file, when the REPL is busy", async () => {
+        helper.options = { silentEval: true };
+        bridge.source.requestTimeout = 30;
+        let error = null;
+        try { await bridge.evalCode({ code: "x = 1" }); } catch (e) { error = e; }
+        expect(error.code).toBe("timeout");
+        expect(fs.existsSync(path.join(bridge.evalDir, "1.jl"))).toBe(true);
+      });
+    });
+
+    it("cannot hand over code without a connected helper", async () => {
+      await bridge.prepare();
+      let error = null;
+      try { await bridge.evalCode({ code: "x" }); } catch (e) { error = e; }
+      expect(error).not.toBe(null);
     });
 
     it("refuses before a REPL was prepared", () => {

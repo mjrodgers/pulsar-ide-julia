@@ -186,7 +186,7 @@ describe("ReplController", () => {
         prepare: async () => ({ loadFile: "/tmp/ws.jl" }),
         canEval: () => true,
         whenConnected: async () => ({}),
-        writeEval: (req) => { written.push(req); return `__pulsar_eval__(${written.length})`; },
+        evalCode: async (req) => { written.push(req); },
       }, over);
     };
     const withBridge = (over, extra = {}) => {
@@ -194,10 +194,10 @@ describe("ReplController", () => {
       return { bridge, ...setup({ editor: fakeEditor({ text, filePath: "/w/a.jl", ...extra.editor }), symbols, bridge, ...extra.setup }) };
     };
 
-    it("types the short call and hands over the code, module, file and line", async () => {
+    it("hands the code, module, file and line to the helper instead of typing it", async () => {
       const { repl, log, bridge } = withBridge({}, { editor: { cursor: [3, 4] } });
       await repl.sendSelectionOrDefinition();
-      expect(log.runs[log.runs.length - 1]).toEqual(["__pulsar_eval__(1)"]);
+      expect(log.runs.length).toBe(1); // only the start of the REPL was typed
       expect(bridge.written).toEqual([{ module: "Main.Outer", file: "/w/a.jl", line: 3, code: "  function g()\n    1\n  end" }]);
     });
 
@@ -256,16 +256,24 @@ describe("ReplController", () => {
       }
     });
 
-    it("falls back to typing if the call cannot be written", async () => {
-      const { repl, log } = withBridge({ writeEval: () => { throw new Error("disk full"); } }, { editor: { cursor: [11, 2] } });
+    it("falls back to typing if the helper cannot take the code", async () => {
+      const { repl, log } = withBridge({ evalCode: async () => { throw new Error("disk full"); } }, { editor: { cursor: [11, 2] } });
       await repl.sendSelectionOrDefinition();
       expect(log.runs[log.runs.length - 1]).toEqual(["function top()", "  2", "end"]);
+    });
+
+    it("does not type the code as well when the REPL is too busy to answer", async () => {
+      const busy = Object.assign(new Error("busy"), { code: "timeout" });
+      const { repl, log } = withBridge({ evalCode: async () => { throw busy; } }, { editor: { cursor: [11, 2] } });
+      await repl.sendSelectionOrDefinition();
+      expect(log.runs.length).toBe(1);
+      expect(log.notes.map((n) => n[0])).toEqual(["addWarning"]);
     });
 
     it("also advances", async () => {
       const { repl, log } = withBridge({}, { editor: { cursor: [11, 2] } });
       await repl.sendSelectionOrDefinition({ advance: true });
-      expect(log.runs[log.runs.length - 1]).toEqual(["__pulsar_eval__(1)"]);
+      expect(log.runs.length).toBe(1);
     });
   });
 

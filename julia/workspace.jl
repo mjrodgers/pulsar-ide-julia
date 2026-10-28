@@ -12,17 +12,17 @@
 #   children <ref>      the fields / elements / entries of a value listed earlier (refs die at the next `ls`)
 #   ping
 #
-# Evaluating code (module-aware "send"): Pulsar writes the code to `<evaldir>/<id>.jl` and types `__pulsar_eval__(<id>)`
-# into the REPL. The file is: module path, source file, first line number, then the code (lines 1-3 are one line each).
-# The code is evaluated in the deepest module of that path that exists, with the file name and line numbers of the
-# editor, and the REPL shows the result like it would for typed code. A trailing `;` hides the result.
-# Every answer is one line of JSON: {"id":N,"ok":true,"module":"Main","items":[...]} or {"id":N,"ok":false,"error":"..."}.
-# An item is {"name","value","type","kind","ref","truncated"}; ref > 0 means it can be expanded with `children`.
-# The helper also sends {"event":"changed"} when the watched module's variables seem to have changed.
+#   eval <id>           evaluate the request in `<evaldir>/<id>.jl`; answered at once, the code runs when the REPL is free
+#
+# Evaluating code (module-aware "send"): Pulsar writes the code to `<evaldir>/<id>.jl` (module path, source file, first
+# line number, one per line, then the code) and sends `eval <id>`. A worker task started on the main thread evaluates it
+# in the deepest module of that path that exists, with the file name and line numbers of the editor. When the REPL is
+# waiting at its prompt, the result is shown like the REPL shows it (nothing for `;`) and the prompt is drawn again.
 
 module var"#PulsarIDEWorkspace"
 
 using Sockets
+using REPL
 
 const MAX_SUMMARY = 200   # characters of a value's text
 const MAX_TYPE = 120
@@ -97,7 +97,6 @@ function visible_names(mod::Module)
     for n in names(mod; all = true)
         startswith(String(n), "#") && continue
         (n === :eval || n === :include || n === nameof(mod)) && continue
-        startswith(String(n), "__pulsar") && continue
         Base.isdeprecated(mod, n) && continue
         isdefined(mod, n) || continue
         push!(out, n)
@@ -335,6 +334,12 @@ function handle(sock, line::AbstractString)
             send(sock, reply(id, items))
         elseif op == "modules"
             send(sock, reply_names(id, all_modules()))
+        elseif op == "eval"
+            queue = eval_queue[]
+            n = tryparse(Int, strip(arg))
+            (queue === nothing || n === nothing) && error("cannot evaluate this request")
+            put!(queue, n)
+            send(sock, reply(id, []))
         elseif op == "ping"
             send(sock, reply(id, []))
         else
@@ -420,11 +425,14 @@ function suppressed(code::AbstractString)
     return false
 end
 
-# Frames from the helper and from `include_string` say nothing to the user.
+# Frames from the helper and from `include_string` say nothing to the user. (A function with keyword arguments runs
+# in a method called `#name#N`, hence the substring checks.)
 function trim_frames(frames)
-    stop = findfirst(f -> f.func === :eval_request, frames)
+    fname(f) = String(f.func)
+    stop = findfirst(f -> occursin("eval_request", fname(f)), frames)
     stop === nothing || (frames = frames[1:stop-1])
-    internal(f) = f.func in (:eval_in, :eval_request, :include_string, :_include_string, :eval) ||
+    internal(f) = occursin("eval_in", fname(f)) || occursin("eval_request", fname(f)) ||
+                  f.func in (:include_string, :_include_string, :eval) ||
                   endswith(String(f.file), "boot.jl") || endswith(String(f.file), "loading.jl")
     while !isempty(frames) && internal(frames[end])
         frames = frames[1:end-1]
@@ -446,7 +454,7 @@ function eval_in(mod::Module, code::AbstractString, file::AbstractString)
     tls = task_local_storage()
     had = haskey(tls, :SOURCE_PATH)
     old = get(tls, :SOURCE_PATH, nothing)
-    isempty(file) || (tls[:SOURCE_PATH] = file)   # so a relative `include` finds its way from the file
+    isempty(file) || (tls[:SOURCE_PATH] = String(file))   # so a relative `include` finds its way from the file
     try
         return include_string(mod, String(code), isempty(file) ? "untitled" : String(file))
     finally
@@ -458,7 +466,7 @@ function eval_in(mod::Module, code::AbstractString, file::AbstractString)
     end
 end
 
-# What the REPL runs when Pulsar types `__pulsar_eval__(id)`.
+# Evaluates request `id` (see the header). Returns the value, or nothing for a failure or a trailing `;`.
 function eval_request(id::Integer; err_io::IO = stderr)
     file = joinpath(EVAL_DIR[], string(id, ".jl"))
     text = try
@@ -477,7 +485,7 @@ function eval_request(id::Integer; err_io::IO = stderr)
     line = something(tryparse(Int, strip(parts[3])), 1)
     code = string("\n"^max(line - 1, 0), parts[4])   # the padding makes line numbers match the editor
     value = try
-        eval_in(mod, code, strip(parts[2]))
+        eval_in(mod, code, String(strip(parts[2])))
     catch err
         report_error(err_io, err, catch_backtrace())
         return nothing
@@ -485,7 +493,52 @@ function eval_request(id::Integer; err_io::IO = stderr)
     return suppressed(parts[4]) ? nothing : value
 end
 
+# --- the worker that evaluates ---------------------------------------------------------------------
+const eval_queue = Ref{Union{Channel{Int},Nothing}}(nothing)
+
+# Is the REPL waiting at its prompt (and not running something)?
+function repl_idle()
+    try
+        repl = Base.active_repl
+        backend = Base.active_repl_backend
+        return repl isa REPL.LineEditREPL && backend !== nothing && !backend.in_eval && repl.mistate !== nothing
+    catch
+        return false
+    end
+end
+
+function redraw_prompt()
+    try
+        REPL.LineEdit.refresh_line(Base.active_repl.mistate)
+    catch
+    end
+    return nothing
+end
+
+# Evaluates one request. At an idle prompt: wipe the prompt line, run, show the result and draw the prompt again.
+function run_eval(id::Integer)
+    idle = repl_idle()
+    idle && print(stdout, "\r\e[2K")
+    try
+        value = eval_request(id)
+        if idle && value !== nothing
+            try
+                Base.invokelatest(display, value)
+            catch err
+                report_error(stderr, err, catch_backtrace())
+            end
+        end
+    finally
+        flush(stdout)
+        idle && redraw_prompt()
+    end
+    return nothing
+end
+
 function stop()
+    queue = eval_queue[]
+    eval_queue[] = nothing
+    queue === nothing || close(queue)
     sock = connection[]
     connection[] = nothing
     sock !== nothing && isopen(sock) && close(sock)
@@ -501,7 +554,17 @@ Julia has one (so the workspace stays responsive while the REPL is busy), otherw
 function start(pipe::AbstractString; evaldir::AbstractString = "")
     stop()
     EVAL_DIR[] = String(evaldir)
-    Core.eval(Main, :(__pulsar_eval__(id::Integer) = $(@__MODULE__).eval_request(id)))
+    # The worker is created here, on the main thread, so the user's code runs there as it does at the REPL
+    # (the socket tasks below may run on an interactive thread).
+    queue = Channel{Int}(256)
+    eval_queue[] = queue
+    @async for id in queue
+        try
+            run_eval(id)
+        catch err
+            @warn "Pulsar: could not evaluate the code" exception = (err, catch_backtrace())
+        end
+    end
     sock = try
         Sockets.connect(pipe)
     catch e

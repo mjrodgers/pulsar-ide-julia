@@ -175,11 +175,7 @@ end
     source_path = get(task_local_storage(), :SOURCE_PATH, nothing)
     @test W.eval_request(request(12, "Main", joinpath(dir, "a.jl"), 1, "include(\"inc.jl\"); included_value")) == 42
     @test get(task_local_storage(), :SOURCE_PATH, nothing) == source_path   # restored
-    # the helper's own names stay out of the listing
-    W.start("/nonexistent/pipe"; evaldir = dir)
-    @test isdefined(Main, :__pulsar_eval__)
-    @test !any(it -> startswith(it.name, "__pulsar"), W.module_items(Main))
-    @test Main.__pulsar_eval__(request(13, "Main", "", 1, "7 * 6")) == 42
+    @test !W.repl_idle()   # no REPL here, so nothing is displayed
 end
 
 @testset "over a socket" begin
@@ -220,6 +216,17 @@ end
         # watch Main again, the change announcement below is about Main
         println(conn, "32\tls\tMain")
         @test occursin("\"module\":\"Main\"", readline(conn))
+
+        # code to evaluate: answered at once, run by the worker
+        evaldir = mktempdir()
+        W.EVAL_DIR[] = evaldir
+        write(joinpath(evaldir, "7.jl"), "Main.TestOuter\n/w/a.jl\n5\npulsar_socket_probe = @__LINE__")
+        println(conn, "33\teval\t7")
+        @test occursin("\"id\":33,\"ok\":true", readline(conn))
+        @test timedwait(() -> isdefined(Main.TestOuter, :pulsar_socket_probe), 10.0) == :ok
+        @test Main.TestOuter.pulsar_socket_probe == 5
+        println(conn, "34\teval\tnope")
+        @test occursin("\"ok\":false", readline(conn))
 
         println(conn, "4\tchildren\t99999")
         @test occursin("\"ok\":false", readline(conn))

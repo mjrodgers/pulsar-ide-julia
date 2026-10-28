@@ -100,10 +100,11 @@ describe("REPL variables in the workspace pane", () => {
     const opening = client.repl.openRepl(editor);
     await opening;
     socket = net.connect(client.replBridge.address);
-    new FakeHelper(socket);
+    const helper = new FakeHelper(socket);
     editor.setCursorBufferPosition([0, 3]);
     await client.repl.sendSelectionOrDefinition();
-    expect(runs[runs.length - 1]).toEqual(["__pulsar_eval__(1)"]);
+    expect(runs.length).toBe(1); // nothing but the start of Julia was typed
+    expect(helper.evals).toEqual([1]);
     const request = fs.readFileSync(path.join(client.replBridge.evalDir, "1.jl"), "utf8").split("\n");
     expect(request.slice(0, 3)).toEqual(["Main", editor.getPath(), "1"]);
     expect(request.slice(3).join("\n")).toBe('greet(name::String) = "Hello, $name!"');

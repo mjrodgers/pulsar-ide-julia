@@ -325,7 +325,7 @@
       "title": "REPL: evaluate sent code in the file's module",
       "type": "boolean",
       "default": true,
-      "description": "Needs the workspace helper (see \"REPL: show variables in the workspace pane\"). Code sent from inside `module Foo … end` is evaluated in `Foo` if the REPL has loaded it, with the file name and line numbers of the editor, so errors point at your file. The REPL shows `__pulsar_eval__(n)` as the command that ran. Turn this off to type the code into the REPL as it is.",
+      "description": "Needs the workspace helper (see \"REPL: show variables in the workspace pane\"). Code sent from inside `module Foo … end` is evaluated in `Foo` if the REPL has loaded it, with the file name and line numbers of the editor, so errors point at your file. The code is not typed into the terminal; the REPL shows the result at its prompt. Turn this off to type the code into the REPL as it is.",
       "order": 34
     }
   },
