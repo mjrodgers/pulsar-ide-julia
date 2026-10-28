@@ -54,7 +54,7 @@ describe("debugger", () => {
       children.push(child);
       return { socket: await server.connect(), child };
     };
-    atom.config.set("pulsar-ide-julia.debugStopOnEntry", true);
+    atom.config.set("pulsar-ide-julia.debugger.stopOnEntry", true);
     attachWorkspace();
   }));
 

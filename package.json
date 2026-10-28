@@ -60,276 +60,317 @@
     "@savetheclocktower/atom-languageclient": "^1.18.0"
   },
   "configSchema": {
-    "jetlsPath": {
+    "server": {
+      "title": "Language server (JETLS)",
+      "description": "Path, Julia, threads, environment, connection, flags and initialization options take effect when the server restarts; the package offers a restart when you change them.",
+      "type": "object",
       "order": 1,
-      "title": "Path to jetls",
-      "type": "string",
-      "default": "jetls",
-      "description": "Leave as `jetls` to use the PATH, falling back to `<julia depot>/bin/jetls`. Set an absolute path to override."
-    },
-    "juliaPath": {
-      "title": "Julia executable",
-      "type": "string",
-      "default": "",
-      "description": "Optional. Sets `JULIA_APPS_JULIA_CMD` for the server, so `jetls` runs with this Julia instead of the one that installed it. Must be Julia 1.12 or newer. Leave empty to use the installing Julia.",
-      "order": 2
-    },
-    "channel": {
-      "title": "Communication channel",
-      "type": "string",
-      "default": "pipe",
-      "enum": [
-        "pipe",
-        "stdio"
-      ],
-      "description": "`pipe` (default) talks to JETLS over a local socket, so anything the loaded code prints to stdout cannot corrupt the protocol. `stdio` uses stdin/stdout; JETLS's docs warn that a stray `println` or a package banner then breaks the connection.",
-      "order": 3
-    },
-    "threads": {
-      "order": 4,
-      "title": "Julia threads",
-      "type": "string",
-      "default": "auto",
-      "description": "Passed as `--threads=` to Julia. Use `auto`, a number, or `4,2` (default,interactive). Empty = Julia's default."
-    },
-    "defaultEnvironment": {
-      "order": 5,
-      "title": "Default environment",
-      "type": "string",
-      "default": "",
-      "description": "Passed as `--project=`. Only affects files with no `Project.toml` above them (standalone scripts). Files inside a project always use that project's environment. Accepts a path, `~/path`, or `@name` for a shared environment."
-    },
-    "juliaFlags": {
-      "order": 6,
-      "title": "Extra Julia flags",
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "default": [],
-      "description": "Comma-separated Julia runtime flags placed before `--`, e.g. `--heap-size-hint=4G`."
-    },
-    "autoInstantiate": {
-      "order": 7,
-      "title": "Auto-instantiate environments",
-      "type": "string",
-      "default": "prompt",
-      "description": "What JETLS does when a file's environment needs instantiating (missing or outdated manifest, or packages not downloaded yet). `prompt` asks first (once per environment per session); `always` instantiates without asking, which can download packages, run build scripts and modify `Manifest.toml`; `never` leaves it untouched and shows a warning. Maps to `full_analysis.auto_instantiate`. Takes effect without a restart.",
-      "enum": [
-        "prompt",
-        "always",
-        "never"
-      ]
-    },
-    "debounce": {
-      "order": 8,
-      "title": "Analysis debounce (seconds)",
-      "type": "number",
-      "default": 1,
-      "minimum": 0,
-      "description": "Wait this long after a save before re-running full analysis (`full_analysis.debounce`)."
-    },
-    "formatter": {
-      "order": 9,
-      "title": "Formatter",
-      "type": "string",
-      "default": "Runic",
-      "enum": [
-        "Runic",
-        "JuliaFormatter"
-      ],
-      "description": "Which formatter JETLS uses (`formatter`). For a custom formatter use the JSON field below."
-    },
-    "settingsJson": {
-      "order": 10,
-      "title": "Additional JETLS settings (JSON)",
-      "type": "string",
-      "default": "{}",
-      "description": "A JSON object in the shape of `.JETLSConfig.toml`, merged over the settings above. Example: `{\"diagnostic\": {\"patterns\": [{\"pattern\": \"lowering/unused-argument\", \"match_by\": \"code\", \"match_type\": \"literal\", \"severity\": \"off\"}]}}`. A project's `.JETLSConfig.toml` still takes precedence."
-    },
-    "initializationOptionsJson": {
-      "order": 11,
-      "title": "Initialization options (JSON)",
-      "type": "string",
-      "default": "{}",
-      "description": "Static JETLS options sent once at startup, e.g. `{\"reuse_native_inference\": true}` or `{\"analysis_overrides\": [{\"path\": \"test/**/*.jl\"}]}`. JETLS knows `analysis_overrides`, `reuse_native_inference`, `pull_diagnostics` and `configuration_section`; an unknown key makes it ignore the whole object. A project's `[initialization_options]` in `.JETLSConfig.toml` takes precedence. Changing this needs a server restart."
-    },
-    "outlineSignatures": {
-      "order": 12,
-      "title": "Signatures in the outline",
-      "type": "boolean",
-      "default": true,
-      "description": "Label entries in the outline view with what JETLS reports about them, instead of just their name: function signatures, struct headers (`FunctionTest{F} <: AbstractTestFunction`) and field types. Julia code often defines one name many times."
-    },
-    "outlineLocals": {
-      "order": 13,
-      "title": "Arguments and locals in the outline",
-      "type": "boolean",
-      "default": false,
-      "description": "Also list each function's arguments, local variables and loop blocks in the outline view. Off keeps the outline to functions, types and top-level definitions."
-    },
-    "replJuliaPath": {
-      "title": "REPL: Julia executable",
-      "type": "string",
-      "default": "",
-      "description": "Julia to start in the terminal REPL. Empty uses `julia` from the terminal's PATH (so juliaup channels work).",
-      "order": 14
-    },
-    "replThreads": {
-      "title": "REPL: threads",
-      "type": "string",
-      "default": "",
-      "description": "Value for `--threads` (a number or `auto`). Empty leaves Julia's default.",
-      "order": 15
-    },
-    "replEnvironment": {
-      "title": "REPL: environment",
-      "type": "string",
-      "default": "",
-      "description": "Empty starts the REPL in the active file's project (nearest Project.toml, if any). Or give a directory, or `@.` / `@v1.12` / `@name`.",
-      "order": 16
-    },
-    "replFlags": {
-      "title": "REPL: extra Julia arguments",
-      "type": "string",
-      "default": "",
-      "description": "Appended to the command as written, e.g. `-e 'using Revise'` (`-i` is added automatically so the REPL stays open) or `--color=yes`.",
-      "order": 17
-    },
-    "replSendVia": {
-      "title": "REPL: how to send code",
-      "type": "string",
-      "default": "service",
-      "enum": [
-        {
-          "value": "service",
-          "description": "Terminal service: documented API, but the terminal package may ask you to approve the commands"
+      "properties": {
+        "jetlsPath": {
+          "title": "Path to jetls",
+          "type": "string",
+          "default": "jetls",
+          "description": "`jetls` uses `<julia depot>/bin/jetls` when it exists, else the PATH. Or give an absolute path.",
+          "order": 1
         },
-        {
-          "value": "command",
-          "description": "Select the code and use the terminal package's run-selected-text command (no approval prompt)"
+        "juliaPath": {
+          "title": "Julia executable",
+          "type": "string",
+          "default": "",
+          "description": "Run JETLS with this Julia (1.12 or newer) instead of the one that installed it.",
+          "order": 2
+        },
+        "threads": {
+          "title": "Threads",
+          "type": "string",
+          "default": "auto",
+          "description": "`--threads` for the server: `auto`, a number, or `4,2` (default,interactive). Empty: Julia's default.",
+          "order": 3
+        },
+        "defaultEnvironment": {
+          "title": "Environment for scripts",
+          "type": "string",
+          "default": "",
+          "description": "`--project` for files with no `Project.toml` above them: a path, `~/path` or `@name`.",
+          "order": 4
+        },
+        "autoInstantiate": {
+          "title": "Instantiate environments",
+          "type": "string",
+          "default": "prompt",
+          "description": "When a file's environment needs instantiating (this may download packages and change `Manifest.toml`).",
+          "enum": [
+            {
+              "value": "prompt",
+              "description": "Ask first"
+            },
+            {
+              "value": "always",
+              "description": "Always, without asking"
+            },
+            {
+              "value": "never",
+              "description": "Never; show a warning"
+            }
+          ],
+          "order": 5
+        },
+        "debounce": {
+          "title": "Analysis delay (seconds)",
+          "type": "number",
+          "default": 1,
+          "description": "Wait this long after a save before analysing again.",
+          "minimum": 0,
+          "order": 6
+        },
+        "formatter": {
+          "title": "Formatter",
+          "type": "string",
+          "default": "Runic",
+          "description": "For a custom formatter, use the extra settings below.",
+          "enum": [
+            "Runic",
+            "JuliaFormatter"
+          ],
+          "order": 7
+        },
+        "settingsJson": {
+          "title": "Extra settings (JSON)",
+          "type": "string",
+          "default": "{}",
+          "description": "Merged over the settings above, in the shape of `.JETLSConfig.toml`, e.g. `{\"diagnostic\": {\"all_files\": false}}`. A project's `.JETLSConfig.toml` takes precedence.",
+          "order": 8
+        },
+        "initializationOptionsJson": {
+          "title": "Initialization options (JSON)",
+          "type": "string",
+          "default": "{}",
+          "description": "Sent at startup, e.g. `{\"reuse_native_inference\": true}`. JETLS ignores the whole object if a key is unknown.",
+          "order": 9
+        },
+        "channel": {
+          "title": "Connection",
+          "type": "string",
+          "default": "pipe",
+          "description": "`pipe` keeps output printed by loaded code away from the protocol; with `stdio` a package banner can break the connection.",
+          "enum": [
+            "pipe",
+            "stdio"
+          ],
+          "order": 10
+        },
+        "juliaFlags": {
+          "title": "Extra Julia flags",
+          "type": "array",
+          "default": [],
+          "description": "Comma-separated flags for the server's Julia, e.g. `--heap-size-hint=4G`.",
+          "items": {
+            "type": "string"
+          },
+          "order": 11
         }
-      ],
-      "description": "How code reaches the terminal. Starting the REPL always uses the terminal service.",
-      "order": 18
+      }
     },
-    "replBracketedPaste": {
-      "title": "REPL: send as a bracketed paste",
-      "type": "boolean",
-      "default": false,
-      "description": "Wrap multi-line code in bracketed-paste markers so the Julia REPL takes it as a single paste. Try this if multi-line blocks misbehave. Only applies to the terminal service.",
-      "order": 19
+    "outline": {
+      "title": "Outline",
+      "description": "How the outline view labels Julia code.",
+      "type": "object",
+      "order": 2,
+      "properties": {
+        "signatures": {
+          "title": "Signatures",
+          "type": "boolean",
+          "default": true,
+          "description": "Label functions, types and fields with their signature instead of only their name.",
+          "order": 1
+        },
+        "locals": {
+          "title": "Arguments and locals",
+          "type": "boolean",
+          "default": false,
+          "description": "Also list each function's arguments, local variables and loop blocks.",
+          "order": 2
+        }
+      }
     },
-    "debugJuliaPath": {
-      "title": "Debugger: Julia path",
-      "type": "string",
-      "default": "",
-      "description": "Julia executable that runs the debug adapter and your program. Empty uses `julia` from the PATH.",
-      "order": 20
+    "repl": {
+      "title": "REPL",
+      "description": "The Julia REPL in Pulsar's terminal, and the workspace pane that lists its variables.",
+      "type": "object",
+      "order": 3,
+      "properties": {
+        "juliaPath": {
+          "title": "Julia executable",
+          "type": "string",
+          "default": "",
+          "description": "Empty: `julia` from the terminal's PATH (so juliaup channels work).",
+          "order": 1
+        },
+        "environment": {
+          "title": "Environment",
+          "type": "string",
+          "default": "",
+          "description": "Empty: the active file's project. Or a folder, `@.`, `@v1.12` or `@name`.",
+          "order": 2
+        },
+        "threads": {
+          "title": "Threads",
+          "type": "string",
+          "default": "",
+          "description": "`--threads`: a number or `auto`. Empty: Julia's default.",
+          "order": 3
+        },
+        "flags": {
+          "title": "Extra arguments",
+          "type": "string",
+          "default": "",
+          "description": "Added to the command as written, e.g. `-e 'using Revise'`.",
+          "order": 4
+        },
+        "workspace": {
+          "title": "Connect the workspace helper",
+          "type": "boolean",
+          "default": true,
+          "description": "Start the REPL with a small helper that lists its variables in the Julia Workspace pane and runs sent code in the right module. Needs Julia 1.9 or newer.",
+          "order": 5
+        },
+        "moduleAware": {
+          "title": "Run sent code in its module",
+          "type": "boolean",
+          "default": true,
+          "description": "Evaluate sent code in the module it belongs to, with the file's name and line numbers. Off: type it into the terminal instead. Needs the helper.",
+          "order": 6
+        },
+        "workspaceModule": {
+          "title": "Workspace module",
+          "type": "string",
+          "default": "Main",
+          "description": "The module the workspace pane lists, e.g. `Main.MyPackage`, or `@follow` for the one at the cursor. Set from the pane's menu.",
+          "order": 7
+        },
+        "sendVia": {
+          "title": "Typing code into the terminal",
+          "type": "string",
+          "default": "service",
+          "description": "Used when code is typed rather than handed to the helper.",
+          "enum": [
+            {
+              "value": "service",
+              "description": "Terminal service (may ask you to approve)"
+            },
+            {
+              "value": "command",
+              "description": "Terminal's run-selected-text command"
+            }
+          ],
+          "order": 8
+        },
+        "bracketedPaste": {
+          "title": "Bracketed paste",
+          "type": "boolean",
+          "default": false,
+          "description": "Type multi-line code as a single paste. Try this if typed blocks misbehave.",
+          "order": 9
+        }
+      }
     },
-    "debugEnvironment": {
-      "title": "Debugger: environment",
-      "type": "string",
-      "default": "",
-      "description": "Empty: the project of the file being debugged (nearest Project.toml). Or `@v1.12`, `@name`, or a directory. DebugAdapter itself must be installed in the default global environment.",
-      "order": 21
-    },
-    "debugThreads": {
-      "title": "Debugger: threads",
-      "type": "string",
-      "default": "",
-      "description": "Passed as `--threads=`. Empty uses Julia's default.",
-      "order": 22
-    },
-    "debugFlags": {
-      "title": "Debugger: extra Julia arguments",
-      "type": "string",
-      "default": "",
-      "description": "Added to the Julia command line, e.g. `--check-bounds=yes`.",
-      "order": 23
-    },
-    "debugStopOnEntry": {
-      "title": "Debugger: stop on entry",
-      "type": "boolean",
-      "default": false,
-      "description": "Pause at the first line when you start debugging, even without breakpoints. Interpreted debugging is slow, so this is off by default.",
-      "order": 24
-    },
-    "debugLaunchArgumentsJson": {
-      "title": "Debugger: extra launch arguments (JSON)",
-      "type": "string",
-      "default": "",
-      "description": "A JSON object merged into the `launch` request, e.g. `{\"args\": [\"--n\", \"3\"]}`. A field set to `null` is removed. By default only `program` and `stopOnEntry` are sent.",
-      "order": 25
-    },
-    "debugExceptionFilters": {
-      "title": "Debugger: break on exceptions",
-      "type": "array",
-      "default": [
-        "error"
-      ],
-      "items": {
-        "type": "string"
-      },
-      "description": "Exception breakpoint filter ids offered by the adapter (the debug output lists them after a session starts). DebugAdapter.jl offers `error` (uncaught exceptions, the default) and `throw` (every exception thrown). Leave empty to never break on exceptions.",
-      "order": 26
-    },
-    "debugOpenWorkspace": {
-      "title": "Debugger: open the workspace pane when debugging starts",
-      "type": "boolean",
-      "default": true,
-      "order": 27
-    },
-    "debugOpenOutput": {
-      "title": "Debugger: open the output pane when the program prints",
-      "type": "boolean",
-      "default": true,
-      "order": 28
-    },
-    "debugProgramArguments": {
-      "title": "Debugger: program arguments",
-      "type": "string",
-      "default": "",
-      "description": "Command-line arguments for the debugged script (`ARGS`), split like a shell would, e.g. `--n 3 \"a b\"`.",
-      "order": 29
-    },
-    "debugCompiledMode": {
-      "title": "Debugger: compiled mode",
-      "type": "boolean",
-      "default": false,
-      "description": "Run code that is not being stepped through compiled instead of interpreted. Much faster, but you cannot step into or break inside it. Use with the modules/functions setting below.",
-      "order": 30
-    },
-    "debugCompiledModules": {
-      "title": "Debugger: compiled modules or functions",
-      "type": "array",
-      "default": [],
-      "items": {
-        "type": "string"
-      },
-      "description": "Modules or functions to run compiled, e.g. `Base`, `LinearAlgebra`. Passed as `compiledModulesOrFunctions`.",
-      "order": 31
-    },
-    "replWorkspace": {
-      "title": "REPL: show variables in the workspace pane",
-      "type": "boolean",
-      "default": true,
-      "description": "Start the REPL with a small helper (julia/workspace.jl in this package) that reports the variables of `Main` to the Julia Workspace pane over a local socket. Read-only; needs Julia 1.9 or newer.",
-      "order": 32
-    },
-    "workspaceModule": {
-      "title": "REPL: module shown in the workspace pane",
-      "type": "string",
-      "default": "Main",
-      "description": "The module whose variables the workspace pane lists for the REPL, such as `Main` or `Main.MyPackage`. The pane's module menu sets this; the special value `@follow` shows the module around the cursor in the active Julia editor.",
-      "order": 33
-    },
-    "replModuleAware": {
-      "title": "REPL: evaluate sent code in the file's module",
-      "type": "boolean",
-      "default": true,
-      "description": "Needs the workspace helper (see \"REPL: show variables in the workspace pane\"). Code sent from inside `module Foo … end` is evaluated in `Foo` if the REPL has loaded it, with the file name and line numbers of the editor, so errors point at your file. The code is not typed into the terminal; the REPL shows the result at its prompt. Turn this off to type the code into the REPL as it is.",
-      "order": 34
+    "debugger": {
+      "title": "Debugger",
+      "description": "Debugging with DebugAdapter.jl, which must be installed in the default environment (`@v1.x`).",
+      "type": "object",
+      "order": 4,
+      "properties": {
+        "juliaPath": {
+          "title": "Julia executable",
+          "type": "string",
+          "default": "",
+          "description": "Empty: `julia` from the PATH.",
+          "order": 1
+        },
+        "environment": {
+          "title": "Environment",
+          "type": "string",
+          "default": "",
+          "description": "Empty: the project of the file being debugged. Or a folder, `@v1.12` or `@name`.",
+          "order": 2
+        },
+        "threads": {
+          "title": "Threads",
+          "type": "string",
+          "default": "",
+          "description": "`--threads`. Empty: Julia's default.",
+          "order": 3
+        },
+        "flags": {
+          "title": "Extra Julia arguments",
+          "type": "string",
+          "default": "",
+          "description": "e.g. `--check-bounds=yes`.",
+          "order": 4
+        },
+        "programArguments": {
+          "title": "Program arguments",
+          "type": "string",
+          "default": "",
+          "description": "`ARGS` for the debugged script, split like a shell would, e.g. `--n 3 \"a b\"`.",
+          "order": 5
+        },
+        "stopOnEntry": {
+          "title": "Stop on entry",
+          "type": "boolean",
+          "default": false,
+          "description": "Pause at the first line, even without breakpoints.",
+          "order": 6
+        },
+        "exceptionFilters": {
+          "title": "Break on exceptions",
+          "type": "array",
+          "default": [
+            "error"
+          ],
+          "description": "`error`: uncaught exceptions. `throw`: every exception thrown. Empty: never.",
+          "items": {
+            "type": "string"
+          },
+          "order": 7
+        },
+        "compiledMode": {
+          "title": "Compiled mode",
+          "type": "boolean",
+          "default": false,
+          "description": "Run code you are not stepping through compiled: much faster, but you cannot break inside it.",
+          "order": 8
+        },
+        "compiledModules": {
+          "title": "Compiled modules",
+          "type": "array",
+          "default": [],
+          "description": "Modules or functions always run compiled, e.g. `Base`, `LinearAlgebra`.",
+          "items": {
+            "type": "string"
+          },
+          "order": 9
+        },
+        "openWorkspace": {
+          "title": "Open the workspace pane when debugging starts",
+          "type": "boolean",
+          "default": true,
+          "order": 10
+        },
+        "openOutput": {
+          "title": "Open the output pane when the program prints",
+          "type": "boolean",
+          "default": true,
+          "order": 11
+        },
+        "launchArgumentsJson": {
+          "title": "Extra launch arguments (JSON)",
+          "type": "string",
+          "default": "",
+          "description": "Merged into the `launch` request, e.g. `{\"cwd\": \"/tmp\"}`; a field set to `null` is removed.",
+          "order": 12
+        }
+      }
     }
   },
   "consumedServices": {

@@ -29,14 +29,34 @@ describe("package metadata", () => {
     }
   });
 
-  it("gives every setting a unique order", () => {
-    const orders = Object.values(readJson("package.json").configSchema).map((s) => s.order);
-    expect(new Set(orders).size).toBe(orders.length);
+  // "repl.threads" -> the schema entry of that setting, or undefined.
+  const schemaAt = (schema, keyPath) => keyPath.split(".").reduce(
+    (node, key, i) => node && (i === 0 ? node[key] : node.properties && node.properties[key]), schema);
+
+  it("gives every group, and every setting in a group, a unique order", () => {
+    const schema = readJson("package.json").configSchema;
+    const unique = (list) => expect(new Set(list).size).toBe(list.length);
+    unique(Object.values(schema).map((g) => g.order));
+    for (const group of Object.values(schema)) {
+      expect(group.type).toBe("object");
+      unique(Object.values(group.properties).map((s) => s.order));
+    }
+  });
+
+  it("has every setting the old names moved to, with a default", () => {
+    const schema = readJson("package.json").configSchema;
+    const { MOVED, RESTART_KEYS } = require("../lib/config-keys");
+    for (const keyPath of [...Object.values(MOVED), ...RESTART_KEYS]) {
+      const entry = schemaAt(schema, keyPath);
+      expect(entry && "default" in entry ? keyPath : `${keyPath} is missing`).toBe(keyPath);
+    }
+    const count = Object.values(schema).reduce((n, g) => n + Object.keys(g.properties).length, 0);
+    expect(count).toBe(Object.keys(MOVED).length);
   });
 
   it("declares a default for every debugger setting the controller reads", () => {
     const schema = readJson("package.json").configSchema;
-    const read = ["debugJuliaPath", "debugEnvironment", "debugThreads", "debugFlags", "debugStopOnEntry", "debugLaunchArgumentsJson", "debugExceptionFilters", "debugOpenWorkspace", "debugOpenOutput", "debugProgramArguments", "debugCompiledMode", "debugCompiledModules", "replWorkspace"];
-    for (const key of read) expect(schema[key] && "default" in schema[key]).toBe(true);
+    const read = ["debugger.juliaPath", "debugger.environment", "debugger.threads", "debugger.flags", "debugger.stopOnEntry", "debugger.launchArgumentsJson", "debugger.exceptionFilters", "debugger.openWorkspace", "debugger.openOutput", "debugger.programArguments", "debugger.compiledMode", "debugger.compiledModules", "repl.workspace"];
+    for (const key of read) expect(schemaAt(schema, key) && "default" in schemaAt(schema, key)).toBe(true);
   });
 });

@@ -61,8 +61,8 @@ describe("activation", () => {
   }));
 
   it("answers the server's workspace/configuration request from Pulsar settings", reportErrors(async () => {
-    atom.config.set("pulsar-ide-julia.formatter", "JuliaFormatter");
-    atom.config.set("pulsar-ide-julia.debounce", 2.5);
+    atom.config.set("pulsar-ide-julia.server.formatter", "JuliaFormatter");
+    atom.config.set("pulsar-ide-julia.server.debounce", 2.5);
 
     trace("opening hello.jl; waiting for the fake server to ask for configuration");
     await atom.workspace.open(path.join(fixtures, "hello.jl"));
@@ -73,7 +73,7 @@ describe("activation", () => {
   }));
 
   it("resolves workspace/configuration sections from Pulsar settings", reportErrors(async () => {
-    atom.config.set("pulsar-ide-julia.formatter", "JuliaFormatter");
+    atom.config.set("pulsar-ide-julia.server.formatter", "JuliaFormatter");
     const result = await client.getWorkspaceConfiguration({
       items: [{ section: "jetls" }, { section: "jetls.formatter" }, { section: "other" }],
     });
@@ -92,7 +92,24 @@ describe("activation", () => {
   });
 
   it("passes initialization options through", () => {
-    atom.config.set("pulsar-ide-julia.initializationOptionsJson", '{"n_analysis_workers": 2}');
-    expect(client.getInitializeParams(fixtures, { pid: 1 }).initializationOptions).toEqual({ n_analysis_workers: 2 });
+    atom.config.set("pulsar-ide-julia.server.initializationOptionsJson", '{"reuse_native_inference": true}');
+    expect(client.getInitializeParams(fixtures, { pid: 1 }).initializationOptions).toEqual({ reuse_native_inference: true });
+  });
+
+  it("sends only the server group to JETLS", () => {
+    expect(client.getRootConfigurationKey()).toBe("pulsar-ide-julia.server");
+  });
+
+  it("moves settings saved under the old names, with Pulsar's real config", () => {
+    const { migrateSettings } = require("../lib/config-keys");
+    atom.config.set("pulsar-ide-julia.replThreads", "4");
+    atom.config.set("pulsar-ide-julia.formatter", "JuliaFormatter");
+    expect(migrateSettings(atom.config, "pulsar-ide-julia").sort()).toEqual(["formatter", "replThreads"]);
+    expect(atom.config.get("pulsar-ide-julia.repl.threads")).toBe("4");
+    expect(atom.config.get("pulsar-ide-julia.server.formatter")).toBe("JuliaFormatter");
+    expect(atom.config.get("pulsar-ide-julia.replThreads")).toBeUndefined();
+    expect(atom.config.get("pulsar-ide-julia.formatter")).toBeUndefined();
+    atom.config.unset("pulsar-ide-julia.repl.threads");
+    atom.config.unset("pulsar-ide-julia.server.formatter");
   });
 });

@@ -34,7 +34,7 @@ describe("REPL variables in the workspace pane", () => {
     });
     runs = [];
     client.consumeTerminal({ open: () => Promise.resolve(), run: (cmds) => { runs.push(cmds); return Promise.resolve(true); } });
-    atom.config.set("pulsar-ide-julia.replWorkspace", true);
+    atom.config.set("pulsar-ide-julia.repl.workspace", true);
   }));
 
   afterEach(() => {
@@ -89,8 +89,8 @@ describe("REPL variables in the workspace pane", () => {
     select.value = "Main.Foo";
     select.dispatchEvent(new Event("change"));
     await waitUntil(() => helper.requests.some((r) => r.op === "ls" && r.arg === "Main.Foo"), "the module switch");
-    expect(atom.config.get("pulsar-ide-julia.workspaceModule")).toBe("Main.Foo");
-    atom.config.unset("pulsar-ide-julia.workspaceModule");
+    expect(atom.config.get("pulsar-ide-julia.repl.workspaceModule")).toBe("Main.Foo");
+    atom.config.unset("pulsar-ide-julia.repl.workspaceModule");
   }));
 
   it("sends code to the module it is in, once the helper is connected", reportErrors(async () => {
@@ -112,7 +112,7 @@ describe("REPL variables in the workspace pane", () => {
   }));
 
   it("leaves the command alone when the setting is off", reportErrors(async () => {
-    atom.config.set("pulsar-ide-julia.replWorkspace", false);
+    atom.config.set("pulsar-ide-julia.repl.workspace", false);
     const editor = await atom.workspace.open(path.join(fixtures, "cells.jl"));
     await client.repl.openRepl(editor);
     expect(runs[0][0]).not.toContain(" -L ");

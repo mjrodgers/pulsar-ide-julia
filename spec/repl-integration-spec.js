@@ -23,7 +23,7 @@ describe("terminal REPL", () => {
     service = { open: () => { opened++; return Promise.resolve(); }, run: (cmds) => { runs.push(cmds); return Promise.resolve(true); } };
     client.consumeTerminal(service);
     // These specs are about typing code; the helper (and with it module-aware sending) is tested elsewhere.
-    atom.config.set("pulsar-ide-julia.replWorkspace", false);
+    atom.config.set("pulsar-ide-julia.repl.workspace", false);
   }));
 
   it("registers its commands", () => {

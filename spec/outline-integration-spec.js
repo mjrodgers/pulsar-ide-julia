@@ -33,13 +33,13 @@ describe("outline signatures", () => {
   }));
 
   it("lists arguments, locals and blocks when asked to", reportErrors(async () => {
-    atom.config.set("pulsar-ide-julia.outlineLocals", true);
+    atom.config.set("pulsar-ide-julia.outline.locals", true);
     const outline = await client.getOutline(editor);
     expect(labels(outline.outlineTrees)).toEqual(["greet(name::String)", "for x in y", "x", "name", "msg"]);
   }));
 
   it("shows plain names when signatures are off", reportErrors(async () => {
-    atom.config.set("pulsar-ide-julia.outlineSignatures", false);
+    atom.config.set("pulsar-ide-julia.outline.signatures", false);
     const outline = await client.getOutline(editor);
     expect(labels(outline.outlineTrees)).toEqual(["greet"]);
   }));

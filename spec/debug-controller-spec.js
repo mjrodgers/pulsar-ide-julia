@@ -24,8 +24,8 @@ describe("DebugController (against a fake adapter)", () => {
 
   const makeController = (options = {}) => {
     settings = {
-      debugStopOnEntry: true, debugLaunchArgumentsJson: "", debugJuliaPath: "", debugThreads: "", debugEnvironment: "", debugFlags: "",
-      debugOpenWorkspace: true, debugOpenOutput: true, debugExceptionFilters: [], debugProgramArguments: "", debugCompiledMode: false, debugCompiledModules: [], ...options.settings,
+      "debugger.stopOnEntry": true, "debugger.launchArgumentsJson": "", "debugger.juliaPath": "", "debugger.threads": "", "debugger.environment": "", "debugger.flags": "",
+      "debugger.openWorkspace": true, "debugger.openOutput": true, "debugger.exceptionFilters": [], "debugger.programArguments": "", "debugger.compiledMode": false, "debugger.compiledModules": [], ...options.settings,
     };
     ui = { locations: [], workspace: 0, output: 0, showLocation(l) { this.locations.push(l); }, openWorkspace() { this.workspace++; }, openOutput() { this.output++; } };
     notes = [];
@@ -70,7 +70,7 @@ describe("DebugController (against a fake adapter)", () => {
 
   it("sends the existing breakpoints with the launch and updates them while stopped", async () => {
     server = await startFakeAdapter();
-    makeController({ settings: { debugStopOnEntry: false } });
+    makeController({ settings: { "debugger.stopOnEntry": false } });
     controller.store.toggle("/work/a.jl", 12);
     await controller.debugFile(fakeEditor("/work/a.jl"));
     await until(settled, "stop at breakpoint");
@@ -169,7 +169,7 @@ describe("DebugController (against a fake adapter)", () => {
 
   it("sends program arguments and compiled mode from the settings", async () => {
     server = await startFakeAdapter();
-    makeController({ settings: { debugProgramArguments: "--n 3", debugCompiledMode: true, debugCompiledModules: ["Base"] } });
+    makeController({ settings: { "debugger.programArguments": "--n 3", "debugger.compiledMode": true, "debugger.compiledModules": ["Base"] } });
     await controller.debugFile(fakeEditor("/work/a.jl"));
     await until(settled);
     expect(server.adapter.launchRequest.arguments).toEqual({
@@ -179,14 +179,14 @@ describe("DebugController (against a fake adapter)", () => {
 
   it("merges launch arguments from the settings and warns about bad JSON", async () => {
     server = await startFakeAdapter();
-    makeController({ settings: { debugStopOnEntry: false, debugLaunchArgumentsJson: '{"args":["--n","3"]}' } });
+    makeController({ settings: { "debugger.stopOnEntry": false, "debugger.launchArgumentsJson": '{"args":["--n","3"]}' } });
     controller.store.toggle("/work/a.jl", 5);
     await controller.debugFile(fakeEditor("/work/a.jl"));
     await until(settled);
     expect(server.adapter.launchRequest.arguments).toEqual({ program: "/work/a.jl", stopOnEntry: false, args: ["--n", "3"] });
     await controller.stop();
 
-    makeController({ settings: { debugLaunchArgumentsJson: "{oops" } });
+    makeController({ settings: { "debugger.launchArgumentsJson": "{oops" } });
     await controller.debugFile(fakeEditor("/work/a.jl"));
     expect(notes.some(([kind, msg]) => kind === "addWarning" && /not valid JSON/.test(msg))).toBe(true);
   });

@@ -41,7 +41,7 @@ function setup({ editor, settings = {}, symbols = null, symbolsError = null, bri
   const log = { open: 0, runs: [], notes: [], dispatched: [] };
   const service = { open: async () => { log.open++; }, run: async (cmds) => { log.runs.push(cmds); return true; } };
   const notifications = new Proxy({}, { get: (_, kind) => (msg) => log.notes.push([kind, msg]) });
-  const values = { replJuliaPath: "", replThreads: "", replEnvironment: "", replFlags: "", replSendVia: "service", replBracketedPaste: false, replWorkspace: true, ...settings };
+  const values = { "repl.juliaPath": "", "repl.threads": "", "repl.environment": "", "repl.flags": "", "repl.sendVia": "service", "repl.bracketedPaste": false, "repl.workspace": true, ...settings };
   const repl = new ReplController({
     setting: (k) => values[k],
     workspace: { getActiveTextEditor: () => editor },
@@ -69,7 +69,7 @@ describe("ReplController and the workspace bridge", () => {
   it("leaves the helper out when the setting is off", async () => {
     let called = 0;
     const bridge = { prepare: async () => { called++; return { loadFile: "/tmp/ws.jl" }; } };
-    const { repl, log } = setup({ editor, bridge, settings: { replWorkspace: false } });
+    const { repl, log } = setup({ editor, bridge, settings: { "repl.workspace": false } });
     await repl.openRepl(editor);
     expect(called).toBe(0);
     expect(log.runs[0][0]).toBe("julia");
@@ -87,7 +87,7 @@ describe("ReplController and the workspace bridge", () => {
 describe("ReplController", () => {
   it("opens a terminal and starts Julia in it", async () => {
     const editor = fakeEditor({ text: "x = 1", filePath: null });
-    const { repl, log } = setup({ editor, settings: { replThreads: "auto", replFlags: "-e 'using Revise'" } });
+    const { repl, log } = setup({ editor, settings: { "repl.threads": "auto", "repl.flags": "-e 'using Revise'" } });
     expect(await repl.openRepl()).toBe(true);
     expect(log.open).toBe(1);
     expect(log.runs).toEqual([["julia --threads=auto -i -e 'using Revise'"]]);
@@ -126,7 +126,7 @@ describe("ReplController", () => {
 
   it("sends a bracketed paste when asked", async () => {
     const editor = fakeEditor({ text: "a = 1\nb = 2", selection: [[0, 0], [1, 5]] });
-    const { repl, log } = setup({ editor, settings: { replBracketedPaste: true } });
+    const { repl, log } = setup({ editor, settings: { "repl.bracketedPaste": true } });
     await repl.sendSelectionOrDefinition();
     expect(log.runs[1]).toEqual(["\u001b[200~a = 1\nb = 2\u001b[201~"]);
   });
@@ -134,7 +134,7 @@ describe("ReplController", () => {
   it("can use the terminal package's run-selected-text command instead, restoring the selection", async () => {
     const original = [[1, 0], [1, 0]];
     const editor = fakeEditor({ text: "a = 1\nb = 2", cursor: [1, 0], selection: original });
-    const { repl, log } = setup({ editor, settings: { replSendVia: "command" }, symbols: [] });
+    const { repl, log } = setup({ editor, settings: { "repl.sendVia": "command" }, symbols: [] });
     await repl.sendSelectionOrDefinition();
     expect(log.dispatched.map((d) => d[1])).toEqual(["terminal:run-selected-text"]);
     expect(log.dispatched[0][0]).toEqual({ view: editor });
@@ -237,8 +237,8 @@ describe("ReplController", () => {
       const cases = [
         [{ canEval: () => false }, {}],
         [{ whenConnected: async () => null }, {}],
-        [{}, { setup: { settings: { replModuleAware: false } } }],
-        [{}, { setup: { settings: { replWorkspace: false } } }],
+        [{}, { setup: { settings: { "repl.moduleAware": false } } }],
+        [{}, { setup: { settings: { "repl.workspace": false } } }],
       ];
       for (const [over, extra] of cases) {
         const { repl, log, bridge } = withBridge(over, { editor: { cursor: [3, 4] }, ...extra });
