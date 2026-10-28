@@ -106,8 +106,9 @@ describe("REPL variables in the workspace pane", () => {
     expect(runs.length).toBe(1); // nothing but the start of Julia was typed
     expect(helper.evals).toEqual([1]);
     const request = fs.readFileSync(path.join(client.replBridge.evalDir, "1.jl"), "utf8").split("\n");
-    expect(request.slice(0, 3)).toEqual(["Main", editor.getPath(), "1"]);
-    expect(request.slice(3).join("\n")).toBe('greet(name::String) = "Hello, $name!"');
+    // module, file, line, package (none: the fixture is not in a package), then the code
+    expect(request.slice(0, 4)).toEqual(["Main", editor.getPath(), "1", ""]);
+    expect(request.slice(4).join("\n")).toBe('greet(name::String) = "Hello, $name!"');
   }));
 
   it("leaves the command alone when the setting is off", reportErrors(async () => {

@@ -42,6 +42,20 @@ describe("DapSession (against a fake adapter)", () => {
     expect(cmds).toContain("stackTrace");
   });
 
+  it("always states the exception filters, keeping only those the adapter offers", async () => {
+    await open({ answerLaunchEarly: true });
+    await session.start({ args: { program: "/work/a.jl" } });
+    const none = server.adapter.requests.find((r) => r.command === "setExceptionBreakpoints");
+    expect(none && none.arguments).toEqual({ filters: [] });
+    client.close();
+    await server.close();
+
+    await open({ answerLaunchEarly: true });
+    await session.start({ args: { program: "/work/a.jl" }, exceptionFilters: ["error", "made-up"] });
+    const some = server.adapter.requests.find((r) => r.command === "setExceptionBreakpoints");
+    expect(some.arguments).toEqual({ filters: ["error"] });
+  });
+
   it("asks for the threads without arguments when the stop names none", async () => {
     await open({ omitThreadId: true });
     await session.start({ args: { program: "/work/a.jl", stopOnEntry: true } });

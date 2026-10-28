@@ -126,13 +126,20 @@ end
 @testset "evaluating code for Pulsar" begin
     dir = mktempdir()
     W.EVAL_DIR[] = dir
-    request(id, mod, file, line, code) = (write(joinpath(dir, string(id, ".jl")), join([mod, file, line, code], '\n')); id)
+    request(id, mod, file, line, code; package = "") = (write(joinpath(dir, string(id, ".jl")), join([mod, file, line, package, code], '\n')); id)
 
     @test W.existing_module("Main.TestOuter.TestInner") === Main.TestOuter.TestInner
     @test W.existing_module("Main.TestOuter.Missing.Deeper") === Main.TestOuter
     @test W.existing_module("Nope") === Main
     @test W.existing_module("") === Main
     @test W.existing_module("Main.x") === Main   # not a module
+    @test W.existing_module("Test") === Test     # a loaded package, bound in Main or not
+    @test W.module_parts("Main.A.B") == ["A", "B"]
+    @test W.module_parts("A") == ["A"]
+    @test W.module_parts("") == String[]
+    # no package: only the module path counts
+    @test W.eval_module("Main.TestOuter.TestInner", "", "/w/a.jl") === Main.TestOuter.TestInner
+    @test W.eval_module("Main.TestOuter", "not a package", "/w/a.jl") === Main.TestOuter
 
     @test W.suppressed("x = 1;")
     @test W.suppressed("x = 1;\n\n# end")
@@ -155,7 +162,7 @@ end
     @test W.eval_request(request(8, "Main", "", 1, "1 + 1;")) === nothing
     # errors are reported, with the editor's file and line, and nothing is thrown
     io = IOBuffer()
-    @test W.eval_request(request(9, "Main", "/w/a.jl", 20, "x = 1\nerror(\"boom\")"); err_io = io) === nothing
+    @test W.eval_request(request(9, "Main", "/w/a.jl", 20, "err_probe = 1\nerror(\"boom\")"); err_io = io) === nothing
     report = String(take!(io))
     @test occursin("boom", report)
     @test occursin("/w/a.jl:21", report)
@@ -167,7 +174,7 @@ end
     # a missing or broken request
     @test W.eval_request(404; err_io = io) === nothing
     @test occursin("could not read", String(take!(io)))
-    write(joinpath(dir, "11.jl"), "only one line")
+    write(joinpath(dir, "11.jl"), "only\nfour\nheader\nlines")
     @test W.eval_request(11; err_io = io) === nothing
     @test occursin("unreadable", String(take!(io)))
     # a relative include is resolved from the file
@@ -176,6 +183,68 @@ end
     @test W.eval_request(request(12, "Main", joinpath(dir, "a.jl"), 1, "include(\"inc.jl\"); included_value")) == 42
     @test get(task_local_storage(), :SOURCE_PATH, nothing) == source_path   # restored
     @test !W.repl_idle()   # no REPL here, so nothing is displayed
+    # Revise is not loaded here: nothing to do, nothing printed
+    @test W.revise_first(IOBuffer()) === nothing
+end
+
+# A real package, precompiled into a temporary depot, to check which module its files are evaluated in.
+@testset "package files" begin
+    depot = mktempdir()
+    pkgdir = mktempdir()
+    uuid = "6c3f9b2e-1d4a-4e8b-9f0a-2b7c5d8e1a34"
+    name = "PulsarProbePkg"
+    mkpath(joinpath(pkgdir, "src", "sub"))
+    write(joinpath(pkgdir, "Project.toml"), "name = \"$name\"\nuuid = \"$uuid\"\n")
+    write(joinpath(pkgdir, "src", "$name.jl"), """
+        module $name
+        include("utils.jl")
+        module Sub
+        include("sub/inner.jl")
+        end
+        end
+        """)
+    write(joinpath(pkgdir, "src", "utils.jl"), "helper() = 1\n")
+    write(joinpath(pkgdir, "src", "sub", "inner.jl"), "inner() = 2\n")
+    src(f) = joinpath(pkgdir, "src", f)
+    spec = "$uuid $name"
+    pushfirst!(DEPOT_PATH, depot)
+    push!(LOAD_PATH, pkgdir)
+    try
+        Base.require(Main, Symbol(name))   # loads it without binding it in Main
+        root = Base.root_module(Base.PkgId(Base.UUID(uuid), name))
+
+        @test W.package_root(spec) === root
+        @test W.package_root("$uuid Other") === nothing
+        @test W.package_root("nonsense $name") === nothing
+        @test W.package_root("") === nothing
+        @test W.loaded_package(name) === root
+        @test W.existing_module("$name.Sub") === root.Sub   # not bound in Main, still found
+        @test W.resolve_module("$name.Sub") === root.Sub
+
+        @test W.eval_module("Main", spec, src("utils.jl")) === root
+        @test W.eval_module("Main", spec, src("sub/inner.jl")) === root.Sub
+        @test W.eval_module("Main.Deeper", spec, src("utils.jl")) === root   # unknown nesting stops at what exists
+        @test W.eval_module("Main.$name", spec, src("$name.jl")) === root
+        @test W.eval_module("Main.$name.Sub", spec, src("$name.jl")) === root.Sub
+        @test W.eval_module("Main", spec, src("$name.jl")) === Main             # before the `module` line
+        @test W.eval_module("Main", spec, src("not_included.jl")) === root      # not in the cache: the package
+
+        dir = mktempdir()
+        W.EVAL_DIR[] = dir
+        write(joinpath(dir, "1.jl"), join(["Main", src("sub/inner.jl"), "1", spec, "probe_value = 7"], '\n'))
+        @test W.eval_request(1) == 7
+        # The binding is newer than this testset's world: read it in the latest one.
+        @test Base.invokelatest(getglobal, root.Sub, :probe_value) == 7
+        @test !Base.invokelatest(isdefined, Main, :probe_value)
+
+        Core.eval(Main, :(import $(Symbol(name))))
+        names = Base.invokelatest(W.all_modules)   # the helper always runs requests in the latest world
+        @test "Main.$name" in names
+        @test "Main.$name.Sub" in names
+    finally
+        popfirst!(DEPOT_PATH)
+        filter!(!=(pkgdir), LOAD_PATH)
+    end
 end
 
 @testset "over a socket" begin
@@ -220,13 +289,22 @@ end
         # code to evaluate: answered at once, run by the worker
         evaldir = mktempdir()
         W.EVAL_DIR[] = evaldir
-        write(joinpath(evaldir, "7.jl"), "Main.TestOuter\n/w/a.jl\n5\npulsar_socket_probe = @__LINE__")
+        write(joinpath(evaldir, "7.jl"), "Main.TestOuter\n/w/a.jl\n5\n\npulsar_socket_probe = @__LINE__")
         println(conn, "33\teval\t7")
         @test occursin("\"id\":33,\"ok\":true", readline(conn))
         @test timedwait(() -> isdefined(Main.TestOuter, :pulsar_socket_probe), 10.0) == :ok
         @test Main.TestOuter.pulsar_socket_probe == 5
         println(conn, "34\teval\tnope")
         @test occursin("\"ok\":false", readline(conn))
+
+        # a module defined after the helper started is still found (inside TestOuter, so Main's watcher stays quiet)
+        Core.eval(Main.TestOuter, :(module PulsarLate end))
+        write(joinpath(evaldir, "8.jl"), "Main.TestOuter.PulsarLate\n/w/a.jl\n1\n\nlate_probe = 1")
+        println(conn, "35\teval\t8")
+        @test occursin("\"id\":35,\"ok\":true", readline(conn))
+        late = Base.invokelatest(getglobal, Main.TestOuter, :PulsarLate)
+        @test timedwait(() -> Base.invokelatest(isdefined, late, :late_probe), 10.0) == :ok
+        @test !Base.invokelatest(isdefined, Main.TestOuter, :late_probe)
 
         println(conn, "4\tchildren\t99999")
         @test occursin("\"ok\":false", readline(conn))

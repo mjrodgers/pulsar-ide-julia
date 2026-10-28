@@ -14,13 +14,14 @@
   "scripts": {
     "test": "pulsar --test spec"
   },
-  "atomTestRunner": "runners/jasmine2-test-runner",
   "activationHooks": [
     "source.julia:root-scope-used"
   ],
   "activationCommands": {
     "atom-workspace": [
       "pulsar-ide-julia:restart-language-server",
+      "pulsar-ide-julia:restart-language-server-for-project-folder",
+      "pulsar-ide-julia:show-language-servers",
       "pulsar-ide-julia:dump-document-symbols",
       "pulsar-ide-julia:open-repl",
       "pulsar-ide-julia:send-selection-or-definition",
@@ -151,7 +152,7 @@
       "title": "Initialization options (JSON)",
       "type": "string",
       "default": "{}",
-      "description": "Static JETLS options sent once at startup, e.g. `{\"n_analysis_workers\": 2}`. Changing this needs a server restart."
+      "description": "Static JETLS options sent once at startup, e.g. `{\"reuse_native_inference\": true}` or `{\"analysis_overrides\": [{\"path\": \"test/**/*.jl\"}]}`. JETLS knows `analysis_overrides`, `reuse_native_inference`, `pull_diagnostics` and `configuration_section`; an unknown key makes it ignore the whole object. A project's `[initialization_options]` in `.JETLSConfig.toml` takes precedence. Changing this needs a server restart."
     },
     "outlineSignatures": {
       "order": 12,
@@ -264,11 +265,13 @@
     "debugExceptionFilters": {
       "title": "Debugger: break on exceptions",
       "type": "array",
-      "default": [],
+      "default": [
+        "error"
+      ],
       "items": {
         "type": "string"
       },
-      "description": "Exception breakpoint filter ids offered by the adapter (the debug output lists them after a session starts), e.g. `error`.",
+      "description": "Exception breakpoint filter ids offered by the adapter (the debug output lists them after a session starts). DebugAdapter.jl offers `error` (uncaught exceptions, the default) and `throw` (every exception thrown). Leave empty to never break on exceptions.",
       "order": 26
     },
     "debugOpenWorkspace": {
@@ -385,6 +388,16 @@
     "code-format.range": {
       "versions": {
         "0.1.0": "provideRangeCodeFormat"
+      }
+    },
+    "code-format.file": {
+      "versions": {
+        "0.1.0": "provideFileCodeFormat"
+      }
+    },
+    "code-format.onSave": {
+      "versions": {
+        "0.1.0": "provideOnSaveCodeFormat"
       }
     },
     "code-highlight": {

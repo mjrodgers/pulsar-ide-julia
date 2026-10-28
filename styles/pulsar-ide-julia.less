@@ -117,3 +117,40 @@ atom-text-editor .line.pulsar-ide-julia-current-line,
 atom-text-editor .line-number.pulsar-ide-julia-current-line {
   background-color: fade(@background-color-warning, 30%);
 }
+
+// --- Language servers pane --------------------------------------------------------------------
+.pulsar-ide-julia-servers {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: auto;
+  font-size: @font-size;
+  color: @text-color;
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: @component-padding / 2;
+    padding: @component-padding / 2 @component-padding;
+    border-bottom: 1px solid @base-border-color;
+    .summary { flex: 1; color: @text-color-subtle; }
+  }
+
+  .servers { padding: @component-padding / 2 0; }
+
+  .row {
+    display: grid;
+    grid-template-columns: minmax(8em, 2fr) 6em 5em 6em 3.5em auto;
+    gap: @component-padding;
+    align-items: center;
+    padding: 2px @component-padding;
+    .pid, .memory, .files { font-variant-numeric: tabular-nums; text-align: right; }
+    .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .actions { display: flex; gap: 4px; justify-content: flex-end; }
+  }
+  .row.header { color: @text-color-subtle; font-size: 0.9em; }
+  .row.server:hover { background: @background-color-highlight; }
+  .row.running .status { color: @text-color-success; }
+  .row.starting .status, .row.busy .status { color: @text-color-warning; }
+  .row.stopped .status { color: @text-color-subtle; }
+}

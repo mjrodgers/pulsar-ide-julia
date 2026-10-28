@@ -336,9 +336,19 @@ describe("ReplBridge", () => {
       expect(bridge.canEval()).toBe(true);
       const call = bridge.writeEval({ module: "Main.Foo", file: "/w/a.jl", line: 12, code: "x = 1\r\ny = 2" });
       expect(call).toBe(1);
-      expect(fs.readFileSync(path.join(bridge.evalDir, "1.jl"), "utf8")).toBe("Main.Foo\n/w/a.jl\n12\nx = 1\ny = 2");
+      expect(fs.readFileSync(path.join(bridge.evalDir, "1.jl"), "utf8")).toBe("Main.Foo\n/w/a.jl\n12\n\nx = 1\ny = 2");
       expect(bridge.writeEval({ code: "z" })).toBe(2);
-      expect(fs.readFileSync(path.join(bridge.evalDir, "2.jl"), "utf8")).toBe("Main\n\n1\nz");
+      expect(fs.readFileSync(path.join(bridge.evalDir, "2.jl"), "utf8")).toBe("Main\n\n1\n\nz");
+    });
+
+    it("adds the package of the file as `<uuid> <name>`", async () => {
+      await bridge.prepare();
+      const pkg = { name: "MyPkg", uuid: "6c3f9b2e-1d4a-4e8b-9f0a-2b7c5d8e1a34" };
+      const id = bridge.writeEval({ module: "Main", file: "/p/src/u.jl", line: 3, code: "f() = 1", package: pkg });
+      expect(fs.readFileSync(path.join(bridge.evalDir, `${id}.jl`), "utf8"))
+        .toBe("Main\n/p/src/u.jl\n3\n6c3f9b2e-1d4a-4e8b-9f0a-2b7c5d8e1a34 MyPkg\nf() = 1");
+      const half = bridge.writeEval({ code: "x", package: { name: "MyPkg" } });
+      expect(fs.readFileSync(path.join(bridge.evalDir, `${half}.jl`), "utf8")).toBe("Main\n\n1\n\nx");
     });
 
     describe("handing the code to a connected helper", () => {

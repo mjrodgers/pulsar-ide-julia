@@ -275,6 +275,75 @@ describe("ReplController", () => {
       await repl.sendSelectionOrDefinition({ advance: true });
       expect(log.runs.length).toBe(1);
     });
+
+    it("tells the helper which package a file belongs to", async () => {
+      const pkg = { name: "MyPkg", uuid: "6c3f9b2e-1d4a-4e8b-9f0a-2b7c5d8e1a34", dir: "/w" };
+      const seen = [];
+      const packageOf = (file) => { seen.push(file); return pkg; };
+      const { repl, bridge } = withBridge({}, { editor: { cursor: [11, 2] }, setup: { deps: { packageOf } } });
+      await repl.sendSelectionOrDefinition();
+      expect(seen).toEqual(["/w/a.jl"]);
+      expect(bridge.written[0]).toEqual({
+        module: "Main", file: "/w/a.jl", line: 11, code: "function top()\n  2\nend",
+        package: { name: "MyPkg", uuid: "6c3f9b2e-1d4a-4e8b-9f0a-2b7c5d8e1a34" },
+      });
+    });
+
+    it("sends no package for unsaved buffers, files outside a package, or when the lookup fails", async () => {
+      const cases = [
+        { editor: { filePath: null, cursor: [11, 2] }, packageOf: () => { throw new Error("should not be asked"); } },
+        { editor: { cursor: [11, 2] }, packageOf: () => null },
+        { editor: { cursor: [11, 2] }, packageOf: () => { throw new Error("EACCES"); } },
+      ];
+      for (const c of cases) {
+        const { repl, bridge } = withBridge({}, { editor: c.editor, setup: { deps: { packageOf: c.packageOf } } });
+        await repl.sendSelectionOrDefinition();
+        expect(bridge.written.length).toBe(1);
+        expect("package" in bridge.written[0]).toBe(false);
+      }
+    });
+  });
+
+  describe("when the REPL exits", () => {
+    // A bridge whose helper connection can be ended by the spec.
+    const endingBridge = () => {
+      const listeners = new Set();
+      return {
+        prepare: async () => ({ loadFile: "/tmp/ws.jl" }),
+        canEval: () => false,
+        onDidDisconnect: (fn) => { listeners.add(fn); return { dispose: () => listeners.delete(fn) }; },
+        disconnect: () => [...listeners].forEach((fn) => fn()),
+        listeners,
+      };
+    };
+
+    it("starts a new REPL on the next send instead of typing into whatever terminal is active", async () => {
+      const bridge = endingBridge();
+      const editor = fakeEditor({ text: "x = 1", filePath: null });
+      const { repl, log } = setup({ editor, bridge });
+      await repl.sendSelectionOrDefinition();
+      expect(log.open).toBe(1);
+      await repl.sendSelectionOrDefinition();
+      expect(log.open).toBe(1); // still running: the code is just sent
+      bridge.disconnect();
+      expect(repl.started).toBe(false);
+      await repl.sendSelectionOrDefinition();
+      expect(log.open).toBe(2);
+      expect(log.runs.map((r) => r[0])).toEqual(["julia -L /tmp/ws.jl", "x = 1", "x = 1", "julia -L /tmp/ws.jl", "x = 1"]);
+    });
+
+    it("stops listening when disposed", () => {
+      const bridge = endingBridge();
+      const { repl } = setup({ editor: fakeEditor({ text: "" }), bridge });
+      expect(bridge.listeners.size).toBe(1);
+      repl.dispose();
+      expect(bridge.listeners.size).toBe(0);
+    });
+
+    it("works with a bridge that cannot report exits", () => {
+      const { repl } = setup({ editor: fakeEditor({ text: "" }), bridge: { prepare: async () => ({ loadFile: null }) } });
+      expect(() => repl.dispose()).not.toThrow();
+    });
   });
 
   describe("sending and advancing", () => {

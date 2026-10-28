@@ -1,7 +1,7 @@
 const { EventEmitter } = require("events");
 // Node's own timers: Pulsar's spec runner replaces the global setTimeout with a mock clock.
 const { setTimeout } = require("timers");
-const { enclosingModulePath, chooseExistingModule, candidateFor, ModuleFollower, FOLLOW } = require("../lib/workspace/module-follow");
+const { enclosingModulePath, chooseExistingModule, candidateFor, withPackage, ModuleFollower, FOLLOW } = require("../lib/workspace/module-follow");
 
 const range = (l1, c1, l2, c2) => ({ start: { line: l1, character: c1 }, end: { line: l2, character: c2 } });
 const mod = (name, r, children = []) => ({ name, kind: 2, range: r, selectionRange: r, children });
@@ -68,6 +68,21 @@ describe("chooseExistingModule", () => {
   it("spells a path", () => {
     expect(candidateFor([])).toBe("Main");
     expect(candidateFor(["A", "B"])).toBe("Main.A.B");
+  });
+});
+
+describe("withPackage", () => {
+  const pkg = { name: "MyPkg" };
+  it("puts the package in front of the in-file path of a package file", () => {
+    expect(withPackage([], pkg)).toEqual(["MyPkg"]);
+    expect(withPackage(["Inner"], pkg)).toEqual(["MyPkg", "Inner"]);
+  });
+  it("leaves the package's own `module MyPkg` alone", () => {
+    expect(withPackage(["MyPkg", "Sub"], pkg)).toEqual(["MyPkg", "Sub"]);
+  });
+  it("changes nothing for files outside a package", () => {
+    expect(withPackage(["A"], null)).toEqual(["A"]);
+    expect(withPackage([], {})).toEqual([]);
   });
 });
 
@@ -175,6 +190,29 @@ describe("ModuleFollower", () => {
     model.following = true;
     model.emit("c");
     await until(() => paths.length === 2, "report after switching on");
+  });
+
+  it("puts the package of the file in front, looking it up once per editor and path", async () => {
+    const lookups = [];
+    follower.dispose();
+    follower = new ModuleFollower({
+      workspace,
+      fetchSymbols: async () => symbols,
+      onPath: (p) => paths.push(p),
+      isActive: () => true,
+      packageOf: (file) => { lookups.push(file); return { name: "MyPkg" }; },
+      delay: 5,
+    });
+    follower.start();
+    editor.getPath = () => "/p/src/a.jl";
+    editor.position = { row: 4, column: 5 };
+    workspace.activate(editor);
+    await until(() => paths.length === 1, "first report");
+    expect(paths[0]).toEqual(["MyPkg", "Outer", "Inner"]);
+    editor.moveTo(22, 0);
+    await until(() => paths.length === 2, "second report");
+    expect(paths[1]).toEqual(["MyPkg", "Second"]);
+    expect(lookups).toEqual(["/p/src/a.jl"]);
   });
 
   it("exposes the special choice", () => {

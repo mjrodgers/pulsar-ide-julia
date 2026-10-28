@@ -15,9 +15,10 @@
 #   eval <id>           evaluate the request in `<evaldir>/<id>.jl`; answered at once, the code runs when the REPL is free
 #
 # Evaluating code (module-aware "send"): Pulsar writes the code to `<evaldir>/<id>.jl` (module path, source file, first
-# line number, one per line, then the code) and sends `eval <id>`. A worker task started on the main thread evaluates it
-# in the deepest module of that path that exists, with the file name and line numbers of the editor. When the REPL is
-# waiting at its prompt, the result is shown like the REPL shows it (nothing for `;`) and the prompt is drawn again.
+# line number, package as `<uuid> <name>` or an empty line, one per line, then the code) and sends `eval <id>`. A worker
+# task started on the main thread evaluates it in the module that code belongs to (see `eval_module`), with the file name
+# and line numbers of the editor, after letting Revise pick up changed files if it is loaded. When the REPL is waiting at
+# its prompt, the result is shown like the REPL shows it (nothing for `;`) and the prompt is drawn again.
 
 module var"#PulsarIDEWorkspace"
 
@@ -92,9 +93,10 @@ catch
 end
 
 # --- what is in a module --------------------------------------------------------------------------
-function visible_names(mod::Module)
+# `imported`: also names brought in with `import`/`using` (a package loaded into Main is one of those).
+function visible_names(mod::Module; imported::Bool = false)
     out = Symbol[]
-    for n in names(mod; all = true)
+    for n in names(mod; all = true, imported)
         startswith(String(n), "#") && continue
         (n === :eval || n === :include || n === nameof(mod)) && continue
         Base.isdeprecated(mod, n) && continue
@@ -209,12 +211,29 @@ function child_items(x)
     return items, more
 end
 
+# A loaded package (a root module) by name, also one that is not bound in Main (a dependency loaded indirectly).
+function loaded_package(name::AbstractString)
+    sym = Symbol(name)
+    for m in Base.loaded_modules_array()
+        nameof(m) === sym && parentmodule(m) === m && return m
+    end
+    return nothing
+end
+
 function resolve_module(path::AbstractString)
     mod = Main
     parts = split(strip(path), '.'; keepempty = false)
     isempty(parts) && return mod
-    for p in parts[(parts[1] == "Main" ? 2 : 1):end]
-        mod = getfield(mod, Symbol(p))
+    rest = parts[(parts[1] == "Main" ? 2 : 1):end]
+    for (i, p) in enumerate(rest)
+        s = Symbol(p)
+        if i == 1 && mod === Main && !isdefined(Main, s)
+            pkg = loaded_package(p)
+            pkg === nothing && error("$path is not a module")
+            mod = pkg
+            continue
+        end
+        mod = getfield(mod, s)
         mod isa Module || error("$path is not a module")
     end
     return mod
@@ -226,10 +245,13 @@ function all_modules()
     found = String["Main"]
     seen = Set{Module}([Main])
     function walk(mod::Module, path::String)
-        for n in visible_names(mod)
+        # Packages loaded into Main are imported names there; inside packages, imports are not submodules.
+        for n in visible_names(mod; imported = mod === Main)
             length(found) >= MAX_MODULES && return
             val = getvalue(mod, n)
-            if val isa Module && nameof(val) === n && !(val in seen) && parentmodule(val) === mod
+            # Submodules, and at the top the packages loaded into Main (a package is its own parent module).
+            if val isa Module && nameof(val) === n && !(val in seen) &&
+               (parentmodule(val) === mod || (mod === Main && parentmodule(val) === val))
                 push!(seen, val)
                 p = string(path, ".", n)
                 push!(found, p)
@@ -400,12 +422,15 @@ end
 # --- evaluating code for Pulsar ------------------------------------------------------------------
 const EVAL_DIR = Ref("")
 
-# The deepest module of a path like "Main.Foo.Bar" that exists (Main if none does).
-function existing_module(path::AbstractString)
-    mod = Main
-    parts = split(strip(path), '.'; keepempty = false)
-    isempty(parts) && return mod
-    for p in parts[(parts[1] == "Main" ? 2 : 1):end]
+# The names of a module path like "Main.Foo.Bar", without the leading Main.
+function module_parts(path::AbstractString)
+    parts = String.(split(strip(path), '.'; keepempty = false))
+    return isempty(parts) || parts[1] != "Main" ? parts : parts[2:end]
+end
+
+# The deepest module reached from `mod` by following `parts` while they name modules.
+function descend(mod::Module, parts)
+    for p in parts
         s = Symbol(p)
         isdefined(mod, s) || break
         next = getfield(mod, s)
@@ -413,6 +438,110 @@ function existing_module(path::AbstractString)
         mod = next
     end
     return mod
+end
+
+# The deepest module of a path like "Main.Foo.Bar" that exists (Main if none does). A first name that is not bound
+# in Main may still be a loaded package.
+function existing_module(path::AbstractString)
+    parts = module_parts(path)
+    isempty(parts) && return Main
+    if !isdefined(Main, Symbol(parts[1]))
+        pkg = loaded_package(parts[1])
+        pkg === nothing || return descend(pkg, parts[2:end])
+    end
+    return descend(Main, parts)
+end
+
+# --- which module a package file belongs to ---------------------------------------------------------------------------
+# A file of a package that has no `module` line of its own is `include`d into the package module, or a submodule of it.
+# Pulsar sends the package (`<uuid> <name>` from the nearest Project.toml, when the file is under its src/); the
+# package must be loaded in this process, under that exact identity.
+function package_root(spec::AbstractString)
+    parts = split(strip(spec), ' '; limit = 2)
+    length(parts) == 2 || return nothing
+    uuid = tryparse(Base.UUID, parts[1])
+    uuid === nothing && return nothing
+    id = Base.PkgId(uuid, String(strip(parts[2])))
+    return Base.root_module_exists(id) ? Base.root_module(id) : nothing
+end
+
+same_file(a::AbstractString, b::AbstractString) = try
+    a == b || (isfile(a) && isfile(b) && samefile(a, b))
+catch
+    false
+end
+
+# The module path each source file of a precompiled package was included into, from its cache file's header (the
+# record Revise uses too). Cached per cache file, which changes whenever the package is recompiled.
+const include_paths_cache = Dict{String,Vector{Tuple{String,Vector{String}}}}()
+
+function include_paths(root::Module)
+    id = Base.PkgId(root)
+    origin = Base.@lock Base.require_lock get(Base.pkgorigins, id, nothing)
+    cachepath = origin === nothing ? nothing : origin.cachepath
+    cachepath isa String && isfile(cachepath) || return nothing
+    return get!(include_paths_cache, cachepath) do
+        # The second element starts with every include of the package on all supported Julia versions (1.12 adds the
+        # source files alone after it, with `@depot` paths resolved in place in both lists).
+        includes = Base.parse_cache_header(cachepath)[2][1]
+        Tuple{String,Vector{String}}[(String(inc.filename), String.(inc.modpath)) for inc in includes if inc.id == id]
+    end
+end
+
+# The module `file` was included into, or nothing when the cache does not say (not precompiled, or a new file).
+function included_module(root::Module, file::AbstractString)
+    paths = try
+        include_paths(root)
+    catch
+        nothing   # internal API; a change in it must not break sending
+    end
+    paths === nothing && return nothing
+    for (filename, modpath) in paths
+        same_file(filename, file) || continue
+        isempty(modpath) && return nothing   # the package's own entry file, loaded at top level
+        rest = modpath[1] == String(nameof(root)) ? modpath[2:end] : modpath
+        return descend(root, rest)
+    end
+    return nothing
+end
+
+"""
+    eval_module(path, package, file) -> Module
+
+Where code from `file` is evaluated. `path` is the `module` nesting around the code inside the file ("Main.Foo"), as
+JETLS reports it; `package` is `"<uuid> <name>"` or empty.
+
+* No package, or the package is not loaded: the deepest existing module of `path`.
+* The package's entry file (`src/<Name>.jl`): code inside `module Name … end` goes to the package itself; code outside it
+  (before the `module` line) goes to Main.
+* Any other file of the package: the module it was included into (from the precompile cache; the package itself when
+  that is unknown), then the in-file nesting below it.
+"""
+function eval_module(path::AbstractString, package::AbstractString, file::AbstractString)
+    root = isempty(strip(package)) ? nothing : package_root(package)
+    root === nothing && return existing_module(path)
+    parts = module_parts(path)
+    entry = pathof(root)
+    if !isempty(file) && entry !== nothing && same_file(entry, file)
+        (!isempty(parts) && parts[1] == String(nameof(root))) || return existing_module(path)
+        return descend(root, parts[2:end])
+    end
+    base = isempty(file) ? nothing : included_module(root, file)
+    return descend(something(base, root), parts)
+end
+
+# Revise updates code in the REPL through the REPL's own hooks, which code evaluated here bypasses: let it catch up
+# first, as it would before a line typed at the prompt.
+function revise_first(err_io::IO)
+    revise = loaded_package("Revise")
+    revise === nothing && return nothing
+    isdefined(revise, :revise) || return nothing
+    try
+        Base.invokelatest(getfield(revise, :revise))
+    catch err
+        report_error(err_io, err, catch_backtrace())
+    end
+    return nothing
 end
 
 # Does the last line of code end with `;` (which hides the result in the REPL)?
@@ -476,21 +605,23 @@ function eval_request(id::Integer; err_io::IO = stderr)
         return nothing
     end
     rm(file; force = true)
-    parts = split(text, '\n'; limit = 4)
-    if length(parts) != 4
+    parts = split(text, '\n'; limit = 5)
+    if length(parts) != 5
         println(err_io, "Pulsar: unreadable code to evaluate.")
         return nothing
     end
-    mod = existing_module(parts[1])
+    srcfile = String(strip(parts[2]))
+    revise_first(err_io)
+    mod = eval_module(parts[1], parts[4], srcfile)
     line = something(tryparse(Int, strip(parts[3])), 1)
-    code = string("\n"^max(line - 1, 0), parts[4])   # the padding makes line numbers match the editor
+    code = string("\n"^max(line - 1, 0), parts[5])   # the padding makes line numbers match the editor
     value = try
-        eval_in(mod, code, String(strip(parts[2])))
+        eval_in(mod, code, srcfile)
     catch err
         report_error(err_io, err, catch_backtrace())
         return nothing
     end
-    return suppressed(parts[4]) ? nothing : value
+    return suppressed(parts[5]) ? nothing : value
 end
 
 # --- the worker that evaluates ---------------------------------------------------------------------
@@ -560,7 +691,9 @@ function start(pipe::AbstractString; evaldir::AbstractString = "")
     eval_queue[] = queue
     @async for id in queue
         try
-            run_eval(id)
+            # invokelatest: this loop keeps the world it started in, and from Julia 1.12 on an older world does not
+            # see globals defined after it (a package loaded or a module defined since the REPL started).
+            Base.invokelatest(run_eval, id)
         catch err
             @warn "Pulsar: could not evaluate the code" exception = (err, catch_backtrace())
         end

@@ -35,6 +35,23 @@ extra Julia flags) are static: changing them offers a server restart.
 `jetls` is a Pkg app: it runs with the Julia that installed it. To run it with another Julia
 (1.12+), set **Julia executable**; the package passes it as `JULIA_APPS_JULIA_CMD`.
 
+## Several project folders
+
+The language client starts one JETLS server per project folder, when you first open a Julia file in it, and stops it
+when the folder's last Julia file closes. JETLS cannot serve several folders from one process, and each server loads
+its packages' dependencies itself, so a window with many package checkouts can hold several large processes.
+
+* **Pulsar Ide Julia: Show Language Servers** opens a pane listing every project folder with its server's state, process
+  id, memory (including processes the server started) and number of open Julia files, with buttons to restart, stop or
+  start each server, and to restart them all. It refreshes every few seconds while open.
+* **Pulsar Ide Julia: Restart Language Server For Project Folder** restarts only the server of the active file's folder.
+  A server loads the packages a project depends on once, so after editing a dependency checkout (another of your
+  folders, `dev`ed into this project's environment), restart the dependent project's server to analyze against the
+  new code.
+
+Each folder is analyzed in the environment of its own `Project.toml`. To have go-to-definition land in, and diagnostics
+reflect, your local checkouts of dependencies, `Pkg.develop` them into that environment.
+
 ## Installing JETLS
 
 `jetls` is a Julia "app": a small launcher in `~/.julia/bin` that runs JETLS with the Julia that installed it.

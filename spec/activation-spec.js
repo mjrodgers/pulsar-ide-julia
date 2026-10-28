@@ -50,6 +50,8 @@ describe("activation", () => {
   it("registers the restart command", () => {
     const names = atom.commands.findCommands({ target: atom.views.getView(atom.workspace) }).map((c) => c.name);
     expect(names).toContain("pulsar-ide-julia:restart-language-server");
+    expect(names).toContain("pulsar-ide-julia:restart-language-server-for-project-folder");
+    expect(names).toContain("pulsar-ide-julia:show-language-servers");
   });
 
   it("starts a server for the project when a .jl file opens", reportErrors(async () => {
