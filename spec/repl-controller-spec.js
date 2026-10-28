@@ -167,6 +167,108 @@ describe("ReplController", () => {
     });
   });
 
+  describe("module-aware evaluation through the helper", () => {
+    const r = (a, b, c, d) => ({ start: { line: a, character: b }, end: { line: c, character: d } });
+    const symbols = [
+      { name: "Outer", kind: 2, range: r(0, 0, 8, 3), children: [
+        { name: "g", kind: 12, range: r(2, 2, 4, 5), children: [] },
+        { name: "Inner", kind: 2, range: r(5, 2, 7, 5), children: [] },
+      ] },
+      { name: "top", kind: 12, range: r(10, 0, 12, 3), children: [] },
+    ];
+    const text = ["module Outer", "", "  function g()", "    1", "  end", "  module Inner", "    z = 3", "  end", "end", "", "function top()", "  2", "end"].join("\n");
+
+    // A bridge that records what it was asked to write.
+    const fakeBridge = (over = {}) => {
+      const written = [];
+      return Object.assign({
+        written,
+        prepare: async () => ({ loadFile: "/tmp/ws.jl" }),
+        canEval: () => true,
+        whenConnected: async () => ({}),
+        writeEval: (req) => { written.push(req); return `__pulsar_eval__(${written.length})`; },
+      }, over);
+    };
+    const withBridge = (over, extra = {}) => {
+      const bridge = fakeBridge(over);
+      return { bridge, ...setup({ editor: fakeEditor({ text, filePath: "/w/a.jl", ...extra.editor }), symbols, bridge, ...extra.setup }) };
+    };
+
+    it("types the short call and hands over the code, module, file and line", async () => {
+      const { repl, log, bridge } = withBridge({}, { editor: { cursor: [3, 4] } });
+      await repl.sendSelectionOrDefinition();
+      expect(log.runs[log.runs.length - 1]).toEqual(["__pulsar_eval__(1)"]);
+      expect(bridge.written).toEqual([{ module: "Main.Outer", file: "/w/a.jl", line: 3, code: "  function g()\n    1\n  end" }]);
+    });
+
+    it("evaluates top-level code in Main", async () => {
+      const { repl, bridge } = withBridge({}, { editor: { cursor: [11, 2] } });
+      await repl.sendSelectionOrDefinition();
+      expect(bridge.written[0].module).toBe("Main");
+      expect(bridge.written[0].line).toBe(11);
+    });
+
+    it("finds the module of a selection", async () => {
+      const { repl, bridge } = withBridge({}, { editor: { selection: [[6, 4], [6, 9]] } });
+      await repl.sendSelectionOrDefinition();
+      expect(bridge.written[0]).toEqual({ module: "Main.Outer.Inner", file: "/w/a.jl", line: 7, code: "z = 3" });
+    });
+
+    it("does not put a whole module inside itself", async () => {
+      const { repl, bridge } = withBridge({}, { editor: { selection: [[5, 2], [7, 5]] } });
+      await repl.sendSelectionOrDefinition();
+      expect(bridge.written[0].module).toBe("Main.Outer");
+    });
+
+    it("sends a cell with its module", async () => {
+      const { repl, bridge } = withBridge({}, { editor: { cursor: [3, 0] } });
+      await repl.sendCell();
+      expect(bridge.written.length).toBe(1);
+      expect(bridge.written[0].line).toBe(1);
+    });
+
+    it("marks buffers without a file", async () => {
+      const { repl, bridge } = withBridge({}, { editor: { filePath: null, cursor: [11, 0] } });
+      await repl.sendSelectionOrDefinition();
+      expect(bridge.written[0].file).toBe("");
+    });
+
+    it("types the code as it is when there is no helper, it does not connect, or the setting is off", async () => {
+      const cases = [
+        [{ canEval: () => false }, {}],
+        [{ whenConnected: async () => null }, {}],
+        [{}, { setup: { settings: { replModuleAware: false } } }],
+        [{}, { setup: { settings: { replWorkspace: false } } }],
+      ];
+      for (const [over, extra] of cases) {
+        const { repl, log, bridge } = withBridge(over, { editor: { cursor: [3, 4] }, ...extra });
+        await repl.sendSelectionOrDefinition();
+        expect(bridge.written).toEqual([]);
+        expect(log.runs[log.runs.length - 1]).toEqual(["  function g()", "    1", "  end"]);
+      }
+    });
+
+    it("uses Main when JETLS has no answer", async () => {
+      for (const extra of [{ setup: { symbolsError: new Error("boom") } }, { setup: { symbols: null } }]) {
+        const { repl, bridge } = withBridge({}, { editor: { selection: [[6, 4], [6, 9]] }, ...extra });
+        await repl.sendSelectionOrDefinition();
+        expect(bridge.written[0].module).toBe("Main");
+      }
+    });
+
+    it("falls back to typing if the call cannot be written", async () => {
+      const { repl, log } = withBridge({ writeEval: () => { throw new Error("disk full"); } }, { editor: { cursor: [11, 2] } });
+      await repl.sendSelectionOrDefinition();
+      expect(log.runs[log.runs.length - 1]).toEqual(["function top()", "  2", "end"]);
+    });
+
+    it("also advances", async () => {
+      const { repl, log } = withBridge({}, { editor: { cursor: [11, 2] } });
+      await repl.sendSelectionOrDefinition({ advance: true });
+      expect(log.runs[log.runs.length - 1]).toEqual(["__pulsar_eval__(1)"]);
+    });
+  });
+
   describe("sending and advancing", () => {
     const text = "x = 1\n\n# a comment\nfunction f(a)\n    a + 1\nend\n\n    y = 2\n# last";
     const symbols = [{ name: "f", kind: 12, range: { start: { line: 3, character: 0 }, end: { line: 5, character: 3 } } }];

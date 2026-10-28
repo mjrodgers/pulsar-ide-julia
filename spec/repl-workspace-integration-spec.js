@@ -93,6 +93,22 @@ describe("REPL variables in the workspace pane", () => {
     atom.config.unset("pulsar-ide-julia.workspaceModule");
   }));
 
+  it("sends code to the module it is in, once the helper is connected", reportErrors(async () => {
+    const editor = await atom.workspace.open(path.join(fixtures, "hello.jl"));
+    await client.getConnectionForEditor(editor);
+    // The REPL starts, and the helper (this fake) connects a little later; the first send waits for it.
+    const opening = client.repl.openRepl(editor);
+    await opening;
+    socket = net.connect(client.replBridge.address);
+    new FakeHelper(socket);
+    editor.setCursorBufferPosition([0, 3]);
+    await client.repl.sendSelectionOrDefinition();
+    expect(runs[runs.length - 1]).toEqual(["__pulsar_eval__(1)"]);
+    const request = fs.readFileSync(path.join(client.replBridge.evalDir, "1.jl"), "utf8").split("\n");
+    expect(request.slice(0, 3)).toEqual(["Main", editor.getPath(), "1"]);
+    expect(request.slice(3).join("\n")).toBe('greet(name::String) = "Hello, $name!"');
+  }));
+
   it("leaves the command alone when the setting is off", reportErrors(async () => {
     atom.config.set("pulsar-ide-julia.replWorkspace", false);
     const editor = await atom.workspace.open(path.join(fixtures, "cells.jl"));

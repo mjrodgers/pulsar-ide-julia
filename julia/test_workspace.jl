@@ -123,6 +123,65 @@ end
     @test_throws Exception W.resolve_module("Nope")
 end
 
+@testset "evaluating code for Pulsar" begin
+    dir = mktempdir()
+    W.EVAL_DIR[] = dir
+    request(id, mod, file, line, code) = (write(joinpath(dir, string(id, ".jl")), join([mod, file, line, code], '\n')); id)
+
+    @test W.existing_module("Main.TestOuter.TestInner") === Main.TestOuter.TestInner
+    @test W.existing_module("Main.TestOuter.Missing.Deeper") === Main.TestOuter
+    @test W.existing_module("Nope") === Main
+    @test W.existing_module("") === Main
+    @test W.existing_module("Main.x") === Main   # not a module
+
+    @test W.suppressed("x = 1;")
+    @test W.suppressed("x = 1;\n\n# end")
+    @test !W.suppressed("x = 1")
+    @test !W.suppressed("x = 1 # a; b")
+
+    # the value comes back and the code runs in the module
+    @test W.eval_request(request(1, "Main.TestOuter.TestInner", "/w/a.jl", 1, "x + 1")) == 2
+    @test W.eval_request(request(2, "Main.TestOuter", "", 1, "pulsar_made = 5")) == 5
+    @test Main.TestOuter.pulsar_made == 5
+    @test !isfile(joinpath(dir, "1.jl"))
+    # an unknown module falls back to Main
+    @test W.eval_request(request(3, "Main.NotLoaded", "", 1, "@__MODULE__")) === Main
+    # file and line numbers are the editor's
+    @test W.eval_request(request(4, "Main", "/w/a.jl", 10, "@__LINE__")) == 10
+    @test W.eval_request(request(5, "Main", "/w/a.jl", 10, "@__FILE__")) == "/w/a.jl"
+    @test W.eval_request(request(6, "Main", "", 3, "string(@__FILE__, ':', @__LINE__)")) == "untitled:3"
+    @test W.eval_request(request(7, "Main", "/w/a.jl", 1, "a = 1\nb = 2\na + b")) == 3
+    # a semicolon hides the result
+    @test W.eval_request(request(8, "Main", "", 1, "1 + 1;")) === nothing
+    # errors are reported, with the editor's file and line, and nothing is thrown
+    io = IOBuffer()
+    @test W.eval_request(request(9, "Main", "/w/a.jl", 20, "x = 1\nerror(\"boom\")"); err_io = io) === nothing
+    report = String(take!(io))
+    @test occursin("boom", report)
+    @test occursin("/w/a.jl:21", report)
+    @test !occursin("LoadError", report)
+    @test !occursin("eval_request", report)
+    # syntax errors too
+    @test W.eval_request(request(10, "Main", "/w/a.jl", 1, "1 +* 2 ("); err_io = io) === nothing
+    @test !isempty(String(take!(io)))
+    # a missing or broken request
+    @test W.eval_request(404; err_io = io) === nothing
+    @test occursin("could not read", String(take!(io)))
+    write(joinpath(dir, "11.jl"), "only one line")
+    @test W.eval_request(11; err_io = io) === nothing
+    @test occursin("unreadable", String(take!(io)))
+    # a relative include is resolved from the file
+    write(joinpath(dir, "inc.jl"), "included_value = 42")
+    source_path = get(task_local_storage(), :SOURCE_PATH, nothing)
+    @test W.eval_request(request(12, "Main", joinpath(dir, "a.jl"), 1, "include(\"inc.jl\"); included_value")) == 42
+    @test get(task_local_storage(), :SOURCE_PATH, nothing) == source_path   # restored
+    # the helper's own names stay out of the listing
+    W.start("/nonexistent/pipe"; evaldir = dir)
+    @test isdefined(Main, :__pulsar_eval__)
+    @test !any(it -> startswith(it.name, "__pulsar"), W.module_items(Main))
+    @test Main.__pulsar_eval__(request(13, "Main", "", 1, "7 * 6")) == 42
+end
+
 @testset "over a socket" begin
     if Sys.iswindows()
         @info "skipping the socket test on Windows"

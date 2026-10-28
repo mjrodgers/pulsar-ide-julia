@@ -11,6 +11,11 @@
 #   modules             the paths of the loaded modules reachable from Main: {"id":N,"ok":true,"names":["Main","Main.Foo",...]}
 #   children <ref>      the fields / elements / entries of a value listed earlier (refs die at the next `ls`)
 #   ping
+#
+# Evaluating code (module-aware "send"): Pulsar writes the code to `<evaldir>/<id>.jl` and types `__pulsar_eval__(<id>)`
+# into the REPL. The file is: module path, source file, first line number, then the code (lines 1-3 are one line each).
+# The code is evaluated in the deepest module of that path that exists, with the file name and line numbers of the
+# editor, and the REPL shows the result like it would for typed code. A trailing `;` hides the result.
 # Every answer is one line of JSON: {"id":N,"ok":true,"module":"Main","items":[...]} or {"id":N,"ok":false,"error":"..."}.
 # An item is {"name","value","type","kind","ref","truncated"}; ref > 0 means it can be expanded with `children`.
 # The helper also sends {"event":"changed"} when the watched module's variables seem to have changed.
@@ -92,6 +97,7 @@ function visible_names(mod::Module)
     for n in names(mod; all = true)
         startswith(String(n), "#") && continue
         (n === :eval || n === :include || n === nameof(mod)) && continue
+        startswith(String(n), "__pulsar") && continue
         Base.isdeprecated(mod, n) && continue
         isdefined(mod, n) || continue
         push!(out, n)
@@ -386,6 +392,99 @@ function watch(sock)
     end
 end
 
+# --- evaluating code for Pulsar ------------------------------------------------------------------
+const EVAL_DIR = Ref("")
+
+# The deepest module of a path like "Main.Foo.Bar" that exists (Main if none does).
+function existing_module(path::AbstractString)
+    mod = Main
+    parts = split(strip(path), '.'; keepempty = false)
+    isempty(parts) && return mod
+    for p in parts[(parts[1] == "Main" ? 2 : 1):end]
+        s = Symbol(p)
+        isdefined(mod, s) || break
+        next = getfield(mod, s)
+        next isa Module || break
+        mod = next
+    end
+    return mod
+end
+
+# Does the last line of code end with `;` (which hides the result in the REPL)?
+function suppressed(code::AbstractString)
+    for line in Iterators.reverse(split(code, '\n'))
+        t = strip(line)
+        (isempty(t) || startswith(t, '#')) && continue
+        return endswith(t, ';')
+    end
+    return false
+end
+
+# Frames from the helper and from `include_string` say nothing to the user.
+function trim_frames(frames)
+    stop = findfirst(f -> f.func === :eval_request, frames)
+    stop === nothing || (frames = frames[1:stop-1])
+    internal(f) = f.func in (:eval_in, :eval_request, :include_string, :_include_string, :eval) ||
+                  endswith(String(f.file), "boot.jl") || endswith(String(f.file), "loading.jl")
+    while !isempty(frames) && internal(frames[end])
+        frames = frames[1:end-1]
+    end
+    return frames
+end
+
+function report_error(io::IO, err, bt)
+    err isa LoadError && (err = err.error)
+    try
+        Base.invokelatest(Base.display_error, io, err, trim_frames(stacktrace(bt)))
+    catch
+        println(io, "ERROR: ", sprint(showerror, err))
+    end
+    return nothing
+end
+
+function eval_in(mod::Module, code::AbstractString, file::AbstractString)
+    tls = task_local_storage()
+    had = haskey(tls, :SOURCE_PATH)
+    old = get(tls, :SOURCE_PATH, nothing)
+    isempty(file) || (tls[:SOURCE_PATH] = file)   # so a relative `include` finds its way from the file
+    try
+        return include_string(mod, String(code), isempty(file) ? "untitled" : String(file))
+    finally
+        if had
+            tls[:SOURCE_PATH] = old
+        else
+            delete!(tls, :SOURCE_PATH)
+        end
+    end
+end
+
+# What the REPL runs when Pulsar types `__pulsar_eval__(id)`.
+function eval_request(id::Integer; err_io::IO = stderr)
+    file = joinpath(EVAL_DIR[], string(id, ".jl"))
+    text = try
+        read(file, String)
+    catch
+        println(err_io, "Pulsar: could not read the code to evaluate ($file).")
+        return nothing
+    end
+    rm(file; force = true)
+    parts = split(text, '\n'; limit = 4)
+    if length(parts) != 4
+        println(err_io, "Pulsar: unreadable code to evaluate.")
+        return nothing
+    end
+    mod = existing_module(parts[1])
+    line = something(tryparse(Int, strip(parts[3])), 1)
+    code = string("\n"^max(line - 1, 0), parts[4])   # the padding makes line numbers match the editor
+    value = try
+        eval_in(mod, code, strip(parts[2]))
+    catch err
+        report_error(err_io, err, catch_backtrace())
+        return nothing
+    end
+    return suppressed(parts[4]) ? nothing : value
+end
+
 function stop()
     sock = connection[]
     connection[] = nothing
@@ -399,8 +498,10 @@ end
 Connect to the socket Pulsar listens on and serve requests in the background. Uses an interactive thread when
 Julia has one (so the workspace stays responsive while the REPL is busy), otherwise the REPL's own thread.
 """
-function start(pipe::AbstractString)
+function start(pipe::AbstractString; evaldir::AbstractString = "")
     stop()
+    EVAL_DIR[] = String(evaldir)
+    Core.eval(Main, :(__pulsar_eval__(id::Integer) = $(@__MODULE__).eval_request(id)))
     sock = try
         Sockets.connect(pipe)
     catch e

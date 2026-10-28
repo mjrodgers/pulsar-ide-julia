@@ -38,6 +38,14 @@ describe("enclosingModulePath", () => {
     expect(enclosingModulePath(symbols, 9, 5)).toEqual(["Outer", "Inner"]);
     expect(enclosingModulePath(symbols, 2, 1)).toEqual(["Outer"]);
   });
+  it("treats code that starts where a module starts as the module itself (strict)", () => {
+    const strict = { strict: true };
+    expect(enclosingModulePath(symbols, 0, 0, strict)).toEqual([]);
+    expect(enclosingModulePath(symbols, 2, 2, strict)).toEqual(["Outer"]);
+    expect(enclosingModulePath(symbols, 3, 4, strict)).toEqual(["Outer", "Inner"]);
+    expect(enclosingModulePath(symbols, 9, 5, strict)).toEqual(["Outer", "Inner"]);
+    expect(enclosingModulePath(symbols, 21, 0, strict)).toEqual([]);
+  });
   it("copes with odd replies", () => {
     expect(enclosingModulePath(null, 1, 1)).toEqual([]);
     expect(enclosingModulePath([{ name: "x", kind: 2 }], 1, 1)).toEqual([]); // no range (flat SymbolInformation)

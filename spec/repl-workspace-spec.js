@@ -295,13 +295,81 @@ describe("ReplBridge", () => {
     const { loadFile } = await bridge.prepare();
     expect(loadFile.startsWith(dir)).toBe(true);
     const text = fs.readFileSync(loadFile, "utf8");
-    expect(text).toBe(bootstrapSource("/pkg/julia/workspace.jl", bridge.address));
+    expect(text).toBe(bootstrapSource("/pkg/julia/workspace.jl", bridge.address, bridge.evalDir));
+    expect(text).toContain('; evaldir=raw"');
     expect(text).toContain('include(raw"/pkg/julia/workspace.jl")');
     expect(text).toContain('Main.var"#PulsarIDEWorkspace".start(raw"');
   });
 
   it("escapes quotes in paths for the Julia string literal", () => {
     expect(bootstrapSource('/a"b/w.jl', "/p")).toContain('raw"/a\\"b/w.jl"');
+  });
+
+  it("leaves the eval directory out of the startup file when there is none", () => {
+    expect(bootstrapSource("/h.jl", "/p")).toBe('include(raw"/h.jl")\nMain.var"#PulsarIDEWorkspace".start(raw"/p")\n');
+  });
+
+  describe("code for the REPL to evaluate", () => {
+    it("writes the request and returns the short call to type", async () => {
+      expect(bridge.canEval()).toBe(false);
+      await bridge.prepare();
+      expect(bridge.canEval()).toBe(true);
+      const call = bridge.writeEval({ module: "Main.Foo", file: "/w/a.jl", line: 12, code: "x = 1\r\ny = 2" });
+      expect(call).toBe("__pulsar_eval__(1)");
+      expect(fs.readFileSync(path.join(bridge.evalDir, "1.jl"), "utf8")).toBe("Main.Foo\n/w/a.jl\n12\nx = 1\ny = 2");
+      expect(bridge.writeEval({ code: "z" })).toBe("__pulsar_eval__(2)");
+      expect(fs.readFileSync(path.join(bridge.evalDir, "2.jl"), "utf8")).toBe("Main\n\n1\nz");
+    });
+
+    it("refuses before a REPL was prepared", () => {
+      let error = null;
+      try { bridge.writeEval({ code: "x" }); } catch (e) { error = e; }
+      expect(error).not.toBe(null);
+    });
+
+    it("removes the directory when prepared again and on dispose", async () => {
+      await bridge.prepare();
+      const first = bridge.evalDir;
+      await bridge.prepare();
+      expect(fs.existsSync(first)).toBe(false);
+      const second = bridge.evalDir;
+      expect(fs.existsSync(second)).toBe(true);
+      bridge.dispose();
+      expect(fs.existsSync(second)).toBe(false);
+      expect(bridge.canEval()).toBe(false);
+    });
+
+    it("waits for the helper to connect, giving up after a while", async () => {
+      expect(await bridge.whenConnected(10)).toBe(null); // nothing prepared
+      await bridge.prepare();
+      expect(await bridge.whenConnected(20)).toBe(null);
+      const waiting = bridge.whenConnected(3000);
+      const socket = net.connect(bridge.address);
+      const source = await waiting;
+      expect(source).toBe(bridge.source);
+      expect(await bridge.whenConnected(10)).toBe(source); // already there
+      socket.destroy();
+    });
+
+    it("does not make later sends wait again once the helper did not show up, but recovers if it does", async () => {
+      await bridge.prepare();
+      expect(await bridge.whenConnected(10)).toBe(null);
+      expect(bridge.canEval()).toBe(false);
+      const t0 = Date.now();
+      expect(await bridge.whenConnected(5000)).toBe(null);
+      expect(Date.now() - t0).toBeLessThan(1000);
+      const socket = net.connect(bridge.address);
+      await until(() => bridge.source, "late connection");
+      expect(bridge.canEval()).toBe(true);
+      socket.destroy();
+    });
+
+    it("stops waiting when the bridge is prepared again", async () => {
+      await bridge.prepare();
+      const waiting = bridge.whenConnected(5000);
+      await bridge.prepare();
+      expect(await waiting).toBe(null);
+    });
   });
 
   it("hands out a source when Julia connects, and removes the startup file", async () => {

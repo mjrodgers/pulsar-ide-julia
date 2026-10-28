@@ -320,6 +320,13 @@
       "default": "Main",
       "description": "The module whose variables the workspace pane lists for the REPL, such as `Main` or `Main.MyPackage`. The pane's module menu sets this; the special value `@follow` shows the module around the cursor in the active Julia editor.",
       "order": 33
+    },
+    "replModuleAware": {
+      "title": "REPL: evaluate sent code in the file's module",
+      "type": "boolean",
+      "default": true,
+      "description": "Needs the workspace helper (see \"REPL: show variables in the workspace pane\"). Code sent from inside `module Foo … end` is evaluated in `Foo` if the REPL has loaded it, with the file name and line numbers of the editor, so errors point at your file. The REPL shows `__pulsar_eval__(n)` as the command that ran. Turn this off to type the code into the REPL as it is.",
+      "order": 34
     }
   },
   "consumedServices": {
