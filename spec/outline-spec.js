@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { parseSymbolDump } = require("./helpers/symbol-dump");
-const { signatureFromLine, decorateOutline, describeSymbols, symbolsToOutline, isDocumentSymbolReply } = require("../lib/outline");
+const { signatureFromLine, decorateOutline, describeSymbols, symbolsToOutline, symbolsToEntries, isDocumentSymbolReply } = require("../lib/outline");
 
 describe("signatureFromLine", () => {
   const sig = (line, name, options) => signatureFromLine(line, name, options);
@@ -333,5 +333,49 @@ describe("symbolsToOutline with real JETLS dumps", () => {
       expect(init.children[0].plainText).toBe("for pkg in [ …");
       expect(init.children[0].children[0].plainText).toBe("pkg");
     });
+  });
+});
+
+describe("symbolsToEntries (Go to Symbol)", () => {
+  const r = (l1, c1, l2, c2) => ({ start: { line: l1, character: c1 }, end: { line: l2, character: c2 } });
+  const sym = (name, kind, detail, sel, extra = {}) => ({ name, kind, detail, range: extra.range || sel, selectionRange: sel, children: extra.children });
+  const brief = (entries) => entries.map((e) => [e.name, e.context ?? null, e.tag ?? null]);
+
+  const method1 = sym("orbit", 12, "function orbit(G::PermGroup, omega)", r(10, 9, 10, 14), { range: r(10, 0, 12, 3), children: [
+    sym("G", 19, "::PermGroup", r(10, 15, 10, 16)),
+    sym(" ", 3, "for g in G", r(11, 4, 11, 14), { children: [sym("g", 13, "for g in G", r(11, 8, 11, 9))] }),
+  ] });
+  const method2 = sym("orbit", 12, "(G::GAPGroup, Omega::GSet) =", r(20, 0, 20, 5));
+  const type = sym("Ladder", 23, "struct Ladder{T} <: AbstractVector{T}", r(2, 7, 2, 13), { range: r(2, 0, 5, 3), children: [
+    sym("groups", 8, "::Vector{T}", r(3, 4, 3, 10)),
+  ] });
+
+  it("names each entry and puts the argument list in its context, so methods can be told apart", () => {
+    expect(brief(symbolsToEntries([method2, type, method1]))).toEqual([
+      ["Ladder", "{T} <: AbstractVector{T}", "struct"],
+      ["groups", "::Vector{T}", "field"],
+      ["orbit", "(G::PermGroup, omega)", "function"],
+      ["orbit", "(G::GAPGroup, Omega::GSet)", "function"],
+    ]);
+  });
+
+  it("leaves out arguments, locals and blocks unless asked, and never lists a blank block itself", () => {
+    expect(brief(symbolsToEntries([method1], { showLocals: true }))).toEqual([
+      ["orbit", "(G::PermGroup, omega)", "function"],
+      ["G", null, null],
+      ["g", null, "variable"],
+    ]);
+  });
+
+  it("gives bare names when signatures are off", () => {
+    expect(brief(symbolsToEntries([method1], { signatures: false }))).toEqual([["orbit", null, "function"]]);
+  });
+
+  it("places each entry at its name", () => {
+    class P { constructor(row, column) { this.row = row; this.column = column; } }
+    class R { constructor(start, end) { this.start = start; this.end = end; } }
+    const [entry] = symbolsToEntries([method1], { Point: P, Range: R });
+    expect(entry.position).toEqual(new P(10, 9));
+    expect(entry.range).toEqual(new R(new P(10, 9), new P(10, 14)));
   });
 });

@@ -1,6 +1,6 @@
 // Julia project lookups (lib/julia/paths.js), against a fake file system.
 const path = require("path");
-const { findProjectDir, parseProjectHeader, readProject, packageOf, expandHome } = require("../lib/julia/paths");
+const { findProjectDir, replProjectDir, parseProjectHeader, readProject, packageOf, expandHome } = require("../lib/julia/paths");
 
 const UUID = "6c3f9b2e-1d4a-4e8b-9f0a-2b7c5d8e1a34";
 
@@ -30,6 +30,26 @@ describe("findProjectDir", () => {
     expect(findProjectDir("/a/b", fs.exists)).toBe(abs("/a"));
     expect(findProjectDir("/z", fs.exists)).toBe(null);
     expect(findProjectDir(null, fs.exists)).toBe(null);
+  });
+});
+
+describe("replProjectDir", () => {
+  const fs = fakeFs({
+    [abs("/pkg/Project.toml")]: 'name = "Pkg"\n',
+    [abs("/pkg/test/Project.toml")]: "[deps]\n",
+    [abs("/pkg/docs/Project.toml")]: "[deps]\n",
+    [abs("/scripts/test/Project.toml")]: "[deps]\n",
+  });
+
+  it("starts the REPL of a package's test file in the package", () => {
+    expect(replProjectDir("/pkg/test/Groups", fs)).toBe(abs("/pkg"));
+    expect(replProjectDir("/pkg/src", fs)).toBe(abs("/pkg"));
+  });
+
+  it("keeps other environments, and a test environment that is not a package's", () => {
+    expect(replProjectDir("/pkg/docs", fs)).toBe(abs("/pkg/docs"));
+    expect(replProjectDir("/scripts/test", fs)).toBe(abs("/scripts/test"));
+    expect(replProjectDir("/nowhere", fs)).toBe(null);
   });
 });
 

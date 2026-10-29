@@ -52,6 +52,8 @@ describe("activation", () => {
     expect(names).toContain("pulsar-ide-julia:restart-language-server");
     expect(names).toContain("pulsar-ide-julia:restart-language-server-for-project-folder");
     expect(names).toContain("pulsar-ide-julia:show-language-servers");
+    expect(names).toContain("pulsar-ide-julia:run-testset-in-repl");
+    expect(names).toContain("pulsar-ide-julia:show-macro-expansion");
   });
 
   it("starts a server for the project when a .jl file opens", reportErrors(async () => {

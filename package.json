@@ -40,6 +40,13 @@
       "pulsar-ide-julia:select-working-folder",
       "pulsar-ide-julia:next-cell",
       "pulsar-ide-julia:previous-cell",
+      "pulsar-ide-julia:run-testset-in-repl",
+      "pulsar-ide-julia:run-test-file-in-repl",
+      "pulsar-ide-julia:run-testset",
+      "pulsar-ide-julia:run-test",
+      "pulsar-ide-julia:show-macro-expansion",
+      "pulsar-ide-julia:expand-all-macros",
+      "pulsar-ide-julia:show-inferred-types",
       "pulsar-ide-julia:debug-start-or-continue",
       "pulsar-ide-julia:debug-file",
       "pulsar-ide-julia:debug-continue",
@@ -172,8 +179,8 @@
       }
     },
     "outline": {
-      "title": "Outline",
-      "description": "How the outline view labels Julia code.",
+      "title": "Outline and Go to Symbol",
+      "description": "How the outline view and the Go to Symbol list (symbols-view) label Julia code.",
       "type": "object",
       "order": 2,
       "properties": {
@@ -181,7 +188,7 @@
           "title": "Signatures",
           "type": "boolean",
           "default": true,
-          "description": "Label functions, types and fields with their signature instead of only their name.",
+          "description": "Label functions, types and fields with their signature instead of only their name. In the Go to Symbol list the argument list is shown beside the name, so the methods of a function can be told apart.",
           "order": 1
         },
         "locals": {
@@ -274,11 +281,40 @@
         }
       }
     },
+    "tests": {
+      "title": "Tests",
+      "description": "Running tests in the REPL (Run Testset in REPL, Run Test File in REPL). Before the tests, Main gets `using Test` and what is chosen here, as `test/runtests.jl` would provide.",
+      "type": "object",
+      "order": 4,
+      "properties": {
+        "environment": {
+          "title": "Use the test environment",
+          "type": "boolean",
+          "default": true,
+          "order": 1,
+          "description": "When the tests have an environment of their own (such as the package's `test/Project.toml`), add it to `LOAD_PATH` so that test-only packages can be loaded. The environment must be instantiated."
+        },
+        "loadPackage": {
+          "title": "Load the package being tested",
+          "type": "boolean",
+          "default": true,
+          "order": 2,
+          "description": "Run `using` for the package the test file belongs to, as `test/runtests.jl` usually does."
+        },
+        "setup": {
+          "title": "Setup code",
+          "type": "string",
+          "default": "",
+          "order": 3,
+          "description": "More Julia code to run in Main first, e.g. `using Aqua; Random.seed!(42)`."
+        }
+      }
+    },
     "debugger": {
       "title": "Debugger",
       "description": "Debugging with DebugAdapter.jl, which must be installed in the default environment (`@v1.x`).",
       "type": "object",
-      "order": 4,
+      "order": 5,
       "properties": {
         "juliaPath": {
           "title": "Julia executable",

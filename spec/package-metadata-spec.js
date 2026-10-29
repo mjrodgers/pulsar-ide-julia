@@ -43,15 +43,21 @@ describe("package metadata", () => {
     }
   });
 
-  it("has every setting the old names moved to, with a default", () => {
+  it("has every setting the old names moved to, and every added one, with a default", () => {
     const schema = readJson("package.json").configSchema;
-    const { MOVED, RESTART_KEYS } = require("../lib/config-keys");
-    for (const keyPath of [...Object.values(MOVED), ...RESTART_KEYS]) {
+    const { MOVED, ADDED, RESTART_KEYS } = require("../lib/config-keys");
+    for (const keyPath of [...Object.values(MOVED), ...ADDED, ...RESTART_KEYS]) {
       const entry = schemaAt(schema, keyPath);
       expect(entry && "default" in entry ? keyPath : `${keyPath} is missing`).toBe(keyPath);
     }
     const count = Object.values(schema).reduce((n, g) => n + Object.keys(g.properties).length, 0);
-    expect(count).toBe(Object.keys(MOVED).length);
+    expect(count).toBe(Object.keys(MOVED).length + ADDED.length);
+  });
+
+  it("lists every test command in activationCommands", () => {
+    const activation = readJson("package.json").activationCommands["atom-workspace"];
+    const { TestController } = require("../lib/tests");
+    for (const name of Object.keys(new TestController({}).commandTable())) expect(activation).toContain(`pulsar-ide-julia:${name}`);
   });
 
   it("declares a default for every debugger setting the controller reads", () => {

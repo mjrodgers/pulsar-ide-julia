@@ -194,6 +194,17 @@ describe("ReplController", () => {
       return { bridge, ...setup({ editor: fakeEditor({ text, filePath: "/w/a.jl", ...extra.editor }), symbols, bridge, ...extra.setup }) };
     };
 
+    it("runs test code in Main through the helper, or types it without one", async () => {
+      const { repl, log, bridge } = withBridge({});
+      expect(await repl.runInMain("using Test\nnothing;", { file: "/w/t.jl", line: 3 })).toBe(true);
+      expect(bridge.written).toEqual([{ module: "Main", file: "/w/t.jl", line: 3, code: "using Test\nnothing;" }]);
+      expect(log.runs.length).toBe(1); // only the start of the REPL
+
+      const typed = setup({ editor: fakeEditor({ text: "" }) });
+      await typed.repl.runInMain("using Test\nnothing;");
+      expect(typed.log.runs[1]).toEqual(["using Test", "nothing;"]);
+    });
+
     it("hands the code, module, file and line to the helper instead of typing it", async () => {
       const { repl, log, bridge } = withBridge({}, { editor: { cursor: [3, 4] } });
       await repl.sendSelectionOrDefinition();

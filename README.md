@@ -7,6 +7,31 @@ Please report issues, I'm happy to work to improve this and keep it up and runni
 Julia language support for Pulsar via [JETLS](https://github.com/aviatesk/JETLS.jl),
 using `@savetheclocktower/atom-languageclient`.
 
+## Requirements
+
+* **A Julia grammar.** Install [language-julia-redux](https://github.com/mjrodgers/pulsar-language-julia), the
+  Tree-sitter grammar written alongside this package: highlighting, indentation, folding, docstrings as Markdown and
+  snippets. This package starts for any file whose grammar is `source.julia`, so the old `language-julia` works too;
+  if both are installed, disable `language-julia`.
+* **JETLS**, and Julia 1.12 or later to run it: see [Installing JETLS](#installing-jetls).
+
+## Go to Symbol
+
+Pulsar's built-in `symbols-view` package lists the symbols in a file, and this package supplies them from JETLS:
+
+* **Symbols View: Toggle File Symbols** (<kbd>ctrl-r</kbd>, <kbd>cmd-r</kbd> on macOS): the functions, types, macros
+  and so on in the current file; type to filter, Enter to jump.
+* **Symbols View: Toggle Project Symbols** (<kbd>ctrl-shift-r</kbd>, <kbd>cmd-shift-r</kbd>): the same across the
+  project.
+* **Symbols View: Go To Declaration** (<kbd>ctrl-alt-down</kbd>, <kbd>cmd-alt-down</kbd>) jumps to the definition of
+  the name under the cursor, and **Return From Declaration** (<kbd>ctrl-alt-up</kbd>, <kbd>cmd-alt-up</kbd>) goes back.
+
+Functions are listed with their argument list beside the name, so the methods of a function can be told apart; the
+**Outline and Go to Symbol** settings control this for both the outline and this list. While JETLS is running it is
+the only source of symbols. Before it has started, or if it is not running, the symbols
+come from the grammar instead. **Symbols View: Show Active Providers** shows which sources are available. (The
+community `symbols-view-redux` package was the prototype of today's built-in `symbols-view`; it is not needed.)
+
 ## Develop
 
     npm install            # or `ppm install`
@@ -17,7 +42,8 @@ using `@savetheclocktower/atom-languageclient`.
 
 ## Settings and JETLS configuration
 
-The settings come in four groups: **Language server (JETLS)**, **Outline**, **REPL** and **Debugger**. Settings saved
+The settings come in five groups: **Language server (JETLS)**, **Outline and Go to Symbol**, **REPL**, **Tests** and
+**Debugger**. Settings saved
 by earlier versions under the old, ungrouped names are moved into their groups the first time the package starts.
 
 Configuration reaches JETLS three ways (highest priority first):
@@ -64,7 +90,7 @@ reflect, your local checkouts of dependencies, `Pkg.develop` them into that envi
 
 Needs Julia 1.12+ (1.12.2+ recommended). This package also looks in `~/.julia/bin` itself, so `PATH` need not be set.
 
-## Test runner
+## Running this package's specs
 
 `package.json` sets `"atomTestRunner": "runners/jasmine2-test-runner"`, which selects the Jasmine 2
 runner that ships inside Pulsar (resolved against Pulsar's own `spec/` directory). The specs use the
@@ -127,6 +153,60 @@ Settings (the **REPL** group): Julia executable, environment, threads, extra arg
 * **Multi-line code.** By default each line is typed as if you had typed it, which Julia's REPL handles for blocks.
   If a block misbehaves, turn on **Bracketed paste**.
 * The REPL is started when you first send code. **Open REPL** starts another one (e.g. after closing the terminal).
+
+## Running tests
+
+Two ways to run a package's tests from the editor; neither has a key by default (see below).
+
+**In the REPL** (fast: the REPL already has your package loaded):
+
+| Command | |
+| --- | --- |
+| Run Testset In REPL | Runs the `@testset` around the cursor (the innermost one) in `Main` |
+| Run Test File In REPL | Saves and `include`s the test file in `Main` |
+
+Test files usually leave their setup to `test/runtests.jl`, so before the tests the package prepares `Main` the way
+`runtests.jl` and `Pkg.test` would (settings in the **Tests** group):
+
+* `using Test`;
+* **Use the test environment**: when the tests have an environment of their own, such as `test/Project.toml`, it is
+  added to `LOAD_PATH`, so test-only packages (Aqua, …) can be loaded. Instantiate it once
+  (`julia --project=test -e 'using Pkg; Pkg.instantiate()'`). Test dependencies listed under `[extras]` in the
+  package's own `Project.toml` cannot be provided this way;
+* **Load the package being tested**: `using` the package the test file belongs to. Its folder is put first on
+  `LOAD_PATH`, so this checkout is loaded even if another version of the package is in your shared environment;
+* **Setup code**: anything else, e.g. `Random.seed!(42)`.
+
+The setup and the tests are sent together, so if the setup fails (a package does not load) the tests do not run.
+A testset can use helpers defined earlier in its file: run the whole file once, then rerun single testsets as you
+edit. Results are printed in the REPL by Test.jl.
+
+A REPL started from a test file runs in the package's environment rather than in `test/Project.toml`, as `Pkg.test`
+would. If a package was already loaded from somewhere else in that REPL session (`Info: ... caches not reused ...
+different source file path` is a sign), start a new REPL: Julia cannot swap a loaded package for another copy.
+
+**With JETLS's TestRunner** (each run is a new Julia process, and failures are shown at the failing lines):
+
+| Command | |
+| --- | --- |
+| Run Testset | The innermost `@testset` around the cursor |
+| Run Test | The `@test` at the cursor |
+| Show Macro Expansion | The macro call at the cursor, expanded one level, in a new tab |
+| Expand All Macros | Every macro in the top-level form at the cursor, expanded |
+| Show Inferred Types | The top-level form at the cursor, annotated with the types JETLS infers |
+
+These are JETLS's code actions, also listed by **Intentions: Show**. TestRunner runs the test file on its own, so a
+file that relies on `runtests.jl` for `using Test` and its package fails with "`@testset` not defined"; for those,
+use the REPL commands. To bind keys, add for example to your `keymap.cson`:
+
+```cson
+'atom-text-editor[data-grammar~="julia"]':
+  'ctrl-alt-t': 'pulsar-ide-julia:run-testset-in-repl'
+  'ctrl-alt-shift-t': 'pulsar-ide-julia:run-test-file-in-repl'
+  'ctrl-alt-m': 'pulsar-ide-julia:show-macro-expansion'
+```
+
+(`alt-enter`, the `intentions` package's key, is this package's **Send Cell** in Julia files.)
 
 ## Debugger and workspace pane
 
