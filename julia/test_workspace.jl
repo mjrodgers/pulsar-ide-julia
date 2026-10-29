@@ -248,6 +248,27 @@ end
     @test timedwait(() -> istaskdone(t), 10.0) == :ok
 end
 
+@testset "watch expressions" begin
+    io = IOBuffer()
+    W.inspect(io, 1, "ls", "Main")
+    take!(io)
+    W.inspect(io, 2, "watch", "x + 1")
+    @test occursin("{\"id\":2,\"ok\":true,\"items\":[{\"name\":\"x + 1\",\"value\":\"43\"", String(take!(io)))
+    W.inspect(io, 3, "watch", "v")
+    m = match(r"\"ref\":(\d+)", String(take!(io)))
+    @test m !== nothing && parse(Int, m.captures[1]) > 0   # can be expanded like a variable
+    W.inspect(io, 4, "watch", "not_defined_anywhere")
+    @test occursin("\"id\":4,\"ok\":false,\"error\":\"UndefVarError", String(take!(io)))
+    W.inspect(io, 5, "watch", "x +")
+    @test occursin("\"ok\":false", String(take!(io)))
+    W.inspect(io, 6, "ls", "Main.TestOuter.TestInner")
+    take!(io)
+    W.inspect(io, 7, "watch", "x")   # in the module the workspace shows
+    @test occursin("\"value\":\"1\"", String(take!(io)))
+    W.inspect(io, 8, "ls", "Main")
+    take!(io)
+end
+
 @testset "results for inline display" begin
     dir = mktempdir()
     W.EVAL_DIR[] = dir
@@ -349,46 +370,49 @@ end
         accepted = @async accept(server)
         W.start(path)
         conn = fetch(accepted)
+        # The answer to a request, skipping the announcements that may come in between (kept in `events`).
+        events = String[]
+        answer(conn) = (line = readline(conn); startswith(line, "{\"event\"") ? (push!(events, line); answer(conn)) : line)
 
         println(conn, "1\tping")
-        @test occursin("\"id\":1,\"ok\":true", readline(conn))
+        @test occursin("\"id\":1,\"ok\":true", answer(conn))
 
         println(conn, "2\tls\tMain")
-        line = readline(conn)
+        line = answer(conn)
         @test occursin("\"id\":2,\"ok\":true,\"module\":\"Main\"", line)
         @test occursin("\"name\":\"x\",\"value\":\"42\",\"type\":\"Int64\",\"kind\":\"variable\",\"ref\":0", line)
         m = match(r"\"name\":\"v\",\"value\":\"[^\"]*\",\"type\":\"[^\"]*\",\"kind\":\"variable\",\"ref\":(\d+)", line)
         @test m !== nothing
 
         println(conn, "3\tchildren\t", m.captures[1])
-        line = readline(conn)
+        line = answer(conn)
         @test occursin("\"id\":3,\"ok\":true", line)
         @test occursin("\"name\":\"[2]\",\"value\":\"2\"", line)
 
         println(conn, "30\tmodules")
-        line = readline(conn)
+        line = answer(conn)
         @test occursin("\"id\":30,\"ok\":true,\"names\":[\"Main\"", line)
         @test occursin("\"Main.TestOuter.TestInner\"", line)
 
         println(conn, "31\tls\tMain.TestOuter.TestInner")
-        line = readline(conn)
+        line = answer(conn)
         @test occursin("\"module\":\"Main.TestOuter.TestInner\"", line)
         @test occursin("\"name\":\"x\",\"value\":\"1\"", line)
 
         # watch Main again, the change announcement below is about Main
         println(conn, "32\tls\tMain")
-        @test occursin("\"module\":\"Main\"", readline(conn))
+        @test occursin("\"module\":\"Main\"", answer(conn))
 
         # code to evaluate: answered at once, run by the worker
         evaldir = mktempdir()
         W.EVAL_DIR[] = evaldir
         write(joinpath(evaldir, "7.jl"), "Main.TestOuter\n/w/a.jl\n5\n\npulsar_socket_probe = @__LINE__")
         println(conn, "33\teval\t7")
-        @test occursin("\"id\":33,\"ok\":true", readline(conn))
+        @test occursin("\"id\":33,\"ok\":true", answer(conn))
         @test timedwait(() -> isdefined(Main.TestOuter, :pulsar_socket_probe), 10.0) == :ok
         @test Main.TestOuter.pulsar_socket_probe == 5
         println(conn, "34\teval\tnope")
-        @test occursin("\"ok\":false", readline(conn))
+        @test occursin("\"ok\":false", answer(conn))
 
         # with "result", the result follows when the code has run
         write(joinpath(evaldir, "9.jl"), "Main\n/w/a.jl\n1\n\n40 + 2")
@@ -404,17 +428,22 @@ end
         Core.eval(Main.TestOuter, :(module PulsarLate end))
         write(joinpath(evaldir, "8.jl"), "Main.TestOuter.PulsarLate\n/w/a.jl\n1\n\nlate_probe = 1")
         println(conn, "35\teval\t8")
-        @test occursin("\"id\":35,\"ok\":true", readline(conn))
+        @test occursin("\"id\":35,\"ok\":true", answer(conn))
         late = Base.invokelatest(getglobal, Main.TestOuter, :PulsarLate)
         @test timedwait(() -> Base.invokelatest(isdefined, late, :late_probe), 10.0) == :ok
         @test !Base.invokelatest(isdefined, Main.TestOuter, :late_probe)
 
         println(conn, "4\tchildren\t99999")
-        @test occursin("\"ok\":false", readline(conn))
+        @test occursin("\"ok\":false", answer(conn))
         println(conn, "5\tdance")
-        @test occursin("unknown request", readline(conn))
+        @test occursin("unknown request", answer(conn))
 
-        # a new variable should be announced
+        # a new variable should be announced (after the announcements of the code run above: the ping's answer
+        # comes after them)
+        println(conn, "37\tping")
+        @test occursin("\"id\":37,\"ok\":true", answer(conn))
+        @test "{\"event\":\"changed\"}" in events   # sent code is followed by one
+        empty!(events)
         event = Ref("")
         @async event[] = readline(conn)
         @eval Main newvar = 1
@@ -423,8 +452,7 @@ end
 
         # while something runs: "busy", and a fresh announcement when it is free again
         # (skipping any change announcement still on its way)
-        events = String[]
-        answer(conn) = (line = readline(conn); startswith(line, "{\"event\"") ? (push!(events, line); answer(conn)) : line)
+        empty!(events)
         println(conn, "41\tinterrupt")
         @test occursin("nothing is running", answer(conn))
         W.evaluating[] = true

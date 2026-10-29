@@ -310,9 +310,16 @@ fields, elements or entries of structs, arrays, dictionaries, sets, tuples and m
   Julia file (from JETLS's symbols, with the package in front for files under a package's `src/`; modules the REPL does
   not know yet fall back to the enclosing one that it does). The choice is kept in **REPL → Workspace module**
   (`@follow` for Follow editor).
+* **Watch expressions**: type an expression (`length(reps)`, `G.order`, `sum(v) / length(v)`) into the box under the
+  filter and press Enter. Watches are listed above the variables and evaluated again, in the module shown, each time
+  the pane reads the REPL: after every send, after changes it notices, and with Refresh. They run like code typed at the
+  prompt, so keep them free of side effects. Hover one and click × to remove it. They are kept with the window, and
+  while the debugger is stopped they are evaluated in the selected stack frame instead. (The box is part of
+  pulsar-ide-debugger's Workspace pane, from its version 0.2.0.)
 * While a debug session is active the pane shows the debugger's frame variables; afterwards it goes back to the REPL.
-* It refreshes by itself shortly after variables are added, removed or rebound, or a collection changes length. Changes
-  inside a value (`a[1] = 5`) are not noticed; use the Refresh button.
+* It refreshes by itself after every send from Pulsar, and shortly after variables are added, removed or rebound, or a
+  collection changes length. Changes inside a value made by code typed at the prompt (`a[1] = 5`) are not noticed; use
+  the Refresh button.
 * It only works for a REPL started from Pulsar (the helper needs the startup file), and needs Julia 1.9 or newer and no
   packages. Turn it off with **REPL → Connect the workspace helper**.
 * Values are not read while the REPL is running something (code typed at the prompt or sent from Pulsar): reading them

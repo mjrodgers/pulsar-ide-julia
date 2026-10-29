@@ -132,6 +132,22 @@ describe("ReplWorkspaceSource (against a fake helper)", () => {
     expect(source.state.problem).toBeUndefined();
   });
 
+  it("evaluates watch expressions after each reading, above the module's variables", async () => {
+    await open();
+    await until(() => source.state.contexts.length === 1);
+    await source.setWatches(["x + 1", "nope", " "]);
+    const [watch, main] = source.state.contexts;
+    expect(watch.name).toBe("Watch");
+    expect(watch.watch).toBe(true);
+    expect(watch.items.map((i) => [i.name, i.value, !!i.failed])).toEqual([["x + 1", "43", false], ["nope", "UndefVarError: `nope` not defined in `Main`", true]]);
+    expect(main.name).toBe("Main");
+    server.helper.generation = 1;
+    server.helper.changed();
+    await until(() => source.state.contexts[0].items[0].value === "44", "watch read again");
+    await source.setWatches([]);
+    expect(source.state.contexts.map((c) => c.name)).toEqual(["Main"]);
+  });
+
   it("interrupts the REPL, and says when nothing is running", async () => {
     await open();
     let error;

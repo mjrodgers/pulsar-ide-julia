@@ -10,6 +10,8 @@
 #   ls <module path>    the variables of a module ("" or "Main" for Main); also makes it the watched module
 #   modules             the paths of the loaded modules reachable from Main: {"id":N,"ok":true,"names":["Main","Main.Foo",...]}
 #   children <ref>      the fields / elements / entries of a value listed earlier (refs die at the next `ls`)
+#   watch <expression>  evaluate a watch expression in the watched module: one item, expandable like the others; an
+#                       error (`ok: false`) when it fails
 #   ping
 #   interrupt           interrupt what the REPL is running (code sent from Pulsar, or typed); an error if nothing is running
 #
@@ -19,7 +21,9 @@
 # says so by itself, with {"event":"busy"}, when it notices that the REPL started running something, and sends
 # {"event":"changed"} when the REPL is free again, so Pulsar reads the module again.
 #
-#   eval <id>           evaluate the request in `<evaldir>/<id>.jl`; answered at once, the code runs when the REPL is free
+#   eval <id>           evaluate the request in `<evaldir>/<id>.jl`; answered at once, the code runs when the REPL is free,
+#                       and is followed by {"event":"changed"} (it may have changed values in place, which the watcher
+#                       below does not see)
 #   eval <id> result    the same, and report the result when it has run (inline results in the editor):
 #                       {"event":"result","id":<id>,"ms":<milliseconds>,"kind":...} where kind is
 #                         "value"   "text" (one line) and, when there is more to see, "full" (as the REPL shows it)
@@ -387,7 +391,15 @@ end
 
 # --- requests ----------------------------------------------------------------------------------------
 # Reading values: on the main thread (see `inspect_queue`), and only while the REPL is free.
-const INSPECT_OPS = ("ls", "children", "modules")
+const INSPECT_OPS = ("ls", "children", "modules", "watch")
+
+# A watch expression's value, in the watched module. Watches run like code typed at the prompt; they are evaluated
+# again whenever the workspace is read.
+function watch_value(expression::AbstractString)
+    ex = Meta.parse(expression; raise = true)
+    ex isa Expr && ex.head === :incomplete && error("incomplete expression")
+    return Core.eval(watched[], ex)
+end
 
 function inspect(sock, id::Integer, op::AbstractString, arg::AbstractString)
     busy() && return send(sock, reply_busy(id))   # it may have started while this waited its turn
@@ -405,6 +417,14 @@ function inspect(sock, id::Integer, op::AbstractString, arg::AbstractString)
             send(sock, reply(id, items))
         elseif op == "modules"
             send(sock, reply_names(id, all_modules()))
+        elseif op == "watch"
+            value = try
+                Base.invokelatest(watch_value, arg)
+            catch e
+                e = e isa LoadError ? e.error : e
+                return send(sock, reply_error(id, limited(io -> showerror(io, e))))
+            end
+            send(sock, reply(id, [item(String(arg), value)]))
         end
     catch e
         send(sock, reply_error(id, sprint(showerror, e)))
@@ -783,6 +803,17 @@ function result_message(id::Integer, r, ms::Integer)
     return String(take!(io))
 end
 
+# Values may have changed in ways the watcher does not notice (`a[1] = 5`): have Pulsar read them again.
+function announce_change()
+    sock = connection[]
+    sock === nothing && return nothing
+    try
+        send(sock, "{\"event\":\"changed\"}")
+    catch
+    end
+    return nothing
+end
+
 function send_result(id::Integer, r, ms::Integer)
     sock = connection[]
     sock === nothing && return nothing
@@ -830,11 +861,13 @@ function run_eval(id::Integer; report::Bool = false)
     idle = repl_idle()
     idle && print(stdout, "\r\e[2K")
     evaluating[] = true
+    changed = false
     try
         t0 = time_ns()
         r = evaluate_request(id)
         ms = round(Int, (time_ns() - t0) / 1e6)
         report && r.status !== :unreadable && send_result(id, r, ms)
+        changed = r.status !== :unreadable
         value = r.value
         if idle && value !== nothing
             try
@@ -845,6 +878,7 @@ function run_eval(id::Integer; report::Bool = false)
         end
     finally
         evaluating[] = false
+        changed && announce_change()   # once the REPL is free, so the workspace can be read at once
         flush(stdout)
         idle && redraw_prompt()
     end

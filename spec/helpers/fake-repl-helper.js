@@ -57,7 +57,7 @@ class FakeHelper {
     this.requests.push({ id, op, arg });
     if (this.options && this.options.silent) return;
     // `busy`: the REPL is running something; values are not read (see julia/workspace.jl).
-    if (this.busy && (op === "ls" || op === "children" || op === "modules")) {
+    if (this.busy && (op === "ls" || op === "children" || op === "modules" || op === "watch")) {
       return this.send({ id, ok: false, busy: true, error: "The REPL is busy; the workspace is read again when it is free." });
     }
     if (op === "interrupt") {
@@ -86,6 +86,11 @@ class FakeHelper {
       // The result can come before the answer that the request was queued (the code ran at once).
       if (flags.includes("result")) this.send({ event: "result", id: Number(n), ms: 3, kind: "value", text: "42" });
       return this.send({ id, ok: true, items: [] });
+    }
+    if (op === "watch") {
+      if (arg === "x + 1") return this.send({ id, ok: true, items: [this.item(arg, String(43 + this.generation), "Int64", "value")] });
+      if (arg === "v") return this.send({ id, ok: true, items: [this.item(arg, "[1, 2, 3]", "Vector{Int64}", "value", () => [this.item("[1]", "1", "Int64", "value")])] });
+      return this.send({ id, ok: false, error: `UndefVarError: \`${arg}\` not defined in \`Main\`` });
     }
     if (op === "ping") return this.send({ id, ok: true, items: [] });
     return this.send({ id, ok: false, error: `unknown request '${op}'` });
