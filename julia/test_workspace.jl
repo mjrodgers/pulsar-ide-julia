@@ -442,7 +442,8 @@ end
         # comes after them)
         println(conn, "37\tping")
         @test occursin("\"id\":37,\"ok\":true", answer(conn))
-        @test "{\"event\":\"changed\"}" in events   # sent code is followed by one
+        @test any(startswith("{\"event\":\"changed\",\"ms\":"), events)   # sent code is followed by one
+        @test "{\"event\":\"busy\"}" in events                                # and announced when it starts
         empty!(events)
         event = Ref("")
         @async event[] = readline(conn)

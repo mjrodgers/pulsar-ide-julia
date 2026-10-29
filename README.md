@@ -152,6 +152,9 @@ not inline in the editor.
 | Select Working Folder | – | Choose a folder in the system dialog and `cd` into it |
 | Previous / Next Cell | `alt-up` / `alt-down` | Move between cell markers. A thin line is drawn above each marker (turn it off with **REPL → Cell separators**) |
 
+While a REPL started from Pulsar is connected, the status bar shows it: the module the workspace pane shows, a spinner
+while it runs something, and how long the last code sent from Pulsar took. Click it to open the Workspace pane (from `pulsar-ide-debugger`).
+
 Settings (the **REPL** group): Julia executable, environment, threads, extra arguments (added as written, e.g.
 `-e 'using Revise'`; `-i` is added for you), the workspace helper, and how code is typed when it is typed.
 

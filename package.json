@@ -426,6 +426,11 @@
         "0.1.0": "consumeBusySignal"
       }
     },
+    "status-bar": {
+      "versions": {
+        "^1.0.0": "consumeStatusBar"
+      }
+    },
     "terminal": {
       "versions": {
         "^2.0.0": "consumeTerminal"

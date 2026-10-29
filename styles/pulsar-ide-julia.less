@@ -113,3 +113,11 @@ atom-text-editor .pulsar-ide-julia-result {
 atom-text-editor .line.pulsar-ide-julia-cell-separator {
   box-shadow: inset 0 1px 0 fade(@syntax-text-color, 22%);
 }
+
+// --- Status bar tile ---------------------------------------------------------------------------
+.pulsar-ide-julia-status {
+  &.hidden { display: none; }
+  .icon::before { margin-right: 0.3em; }
+  .loading { margin-right: 0.3em; vertical-align: middle; }
+  .detail { color: @text-color-subtle; }
+}

@@ -22,8 +22,8 @@
 # {"event":"changed"} when the REPL is free again, so Pulsar reads the module again.
 #
 #   eval <id>           evaluate the request in `<evaldir>/<id>.jl`; answered at once, the code runs when the REPL is free,
-#                       and is followed by {"event":"changed"} (it may have changed values in place, which the watcher
-#                       below does not see)
+#                       announced with {"event":"busy"} when it starts, and followed by {"event":"changed","ms":<how long
+#                       it took>} (it may have changed values in place, which the watcher below does not see)
 #   eval <id> result    the same, and report the result when it has run (inline results in the editor):
 #                       {"event":"result","id":<id>,"ms":<milliseconds>,"kind":...} where kind is
 #                         "value"   "text" (one line) and, when there is more to see, "full" (as the REPL shows it)
@@ -803,12 +803,13 @@ function result_message(id::Integer, r, ms::Integer)
     return String(take!(io))
 end
 
-# Values may have changed in ways the watcher does not notice (`a[1] = 5`): have Pulsar read them again.
-function announce_change()
+# Tells Pulsar that sent code started running, or that it is done (with how long it took): values may have changed in
+# ways the watcher does not notice (`a[1] = 5`), so Pulsar reads them again.
+function announce(line::AbstractString)
     sock = connection[]
     sock === nothing && return nothing
     try
-        send(sock, "{\"event\":\"changed\"}")
+        send(sock, line)
     catch
     end
     return nothing
@@ -861,7 +862,9 @@ function run_eval(id::Integer; report::Bool = false)
     idle = repl_idle()
     idle && print(stdout, "\r\e[2K")
     evaluating[] = true
+    announce("{\"event\":\"busy\"}")
     changed = false
+    ms = 0
     try
         t0 = time_ns()
         r = evaluate_request(id)
@@ -878,7 +881,7 @@ function run_eval(id::Integer; report::Bool = false)
         end
     finally
         evaluating[] = false
-        changed && announce_change()   # once the REPL is free, so the workspace can be read at once
+        changed && announce(string("{\"event\":\"changed\",\"ms\":", ms, "}"))   # once the REPL is free, so the workspace can be read at once
         flush(stdout)
         idle && redraw_prompt()
     end

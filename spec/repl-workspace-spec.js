@@ -132,6 +132,26 @@ describe("ReplWorkspaceSource (against a fake helper)", () => {
     expect(source.state.problem).toBeUndefined();
   });
 
+  it("keeps how long sent code took, from the helper's announcement that it is done", async () => {
+    await open();
+    await until(() => source.state.contexts.length === 1);
+    server.helper.send({ event: "changed", ms: 1234 });
+    await until(() => source.state.lastMs === 1234, "timing");
+  });
+
+  it("does not say it is busy for code that is done at once", async () => {
+    await open({}, { busyDelay: 40 });
+    await until(() => source.state.contexts.length === 1);
+    let busy = 0;
+    source.on("state", (s) => { if (s.busy) busy++; });
+    server.helper.busyEvent();
+    server.helper.send({ event: "changed", ms: 2 });
+    await new Promise((r) => setTimeout(r, 80));
+    expect(busy).toBe(0);
+    server.helper.busyEvent();
+    await until(() => source.state.busy, "busy after the delay");
+  });
+
   it("evaluates watch expressions after each reading, above the module's variables", async () => {
     await open();
     await until(() => source.state.contexts.length === 1);
