@@ -136,6 +136,7 @@ not inline in the editor.
 | Send Selection Or Definition And Advance | `shift-enter` | The same, then the cursor moves to the next line of code (blank lines and comments are skipped) |
 | Send Cell / Send Cell And Advance | `alt-enter` / `alt-shift-enter` | The cell between `##`, `#---` or `# %%` markers |
 | Send File | `ctrl-shift-enter` | `include("file")` (saves first) |
+| Interrupt REPL | – | Stops what the REPL is running, like `Ctrl-C` in its terminal. `Ctrl-C` does not reach code sent from Pulsar (it runs alongside the prompt), this does. Needs the workspace helper |
 | Activate Environment | – | `Pkg.activate` on the file's project (nearest `Project.toml`) |
 | Activate Environment In Current Folder / In Parent Folder | – | `Pkg.activate` on the file's folder, or the folder above it |
 | Activate Default Environment | – | `Pkg.activate()` |
@@ -299,6 +300,12 @@ fields, elements or entries of structs, arrays, dictionaries, sets, tuples and m
   inside a value (`a[1] = 5`) are not noticed; use the Refresh button.
 * It only works for a REPL started from Pulsar (the helper needs the startup file), and needs Julia 1.9 or newer and no
   packages. Turn it off with **REPL → Connect the workspace helper**.
-* If the REPL is busy running something long, the pane may lag, unless Julia has an interactive thread (the helper
-  uses one when there is one; check with `Threads.nthreads(:interactive)`).
+* Values are not read while the REPL is running something (code typed at the prompt or sent from Pulsar): reading them
+  from another thread while your code changes them is not safe. The pane says the REPL is running and keeps showing
+  the values from before, and reads them again as soon as it is free. (To watch values while code runs, use the
+  debugger.) Code sent while something is running waits its turn, as if it had been typed after it.
+* **Interrupt REPL** and the pane's answers while code runs need an interactive thread in the REPL, which Julia 1.12
+  and later start by default. With an older Julia, give **REPL → Threads** an interactive thread, e.g. `auto,1`
+  (check with `Threads.nthreads(:interactive)`); without one the pane simply waits until the REPL is free.
+* Modules with more than 500 names (a package's own module) are listed up to the first 500.
 * Run `julia julia/test_workspace.jl` to check the helper on your Julia.

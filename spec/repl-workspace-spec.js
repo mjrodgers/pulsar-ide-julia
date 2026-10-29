@@ -96,6 +96,52 @@ describe("ReplWorkspaceSource (against a fake helper)", () => {
     source.on("problem", (e) => { problem = e; });
     await until(() => problem, "problem report");
     expect(problem.message).toMatch(/did not answer 'ls'/);
+    expect(source.state.busy).toBe(true); // no interactive thread in the REPL: it answers when it is free
+  });
+
+  it("keeps what it showed while the REPL is busy, and reads it again when it is free", async () => {
+    await open();
+    await until(() => source.state.contexts.length === 1);
+    const shown = source.state.contexts;
+    const h = server.helper;
+    h.busyEvent();
+    await until(() => source.state.busy, "busy event");
+    h.busy = true;
+    h.generation = 1;
+    await source.refresh();
+    expect(source.state.busy).toBe(true);
+    expect(source.state.problem).toBeUndefined();
+    expect(source.state.contexts).toBe(shown);
+    let error;
+    try { await source.loadVariables(shown[0].items[1].ref); } catch (e) { error = e; }
+    expect(error && error.code).toBe("busy");
+
+    h.busy = false;
+    h.changed(); // what the helper sends when the REPL is free again
+    await until(() => !source.state.busy, "not busy");
+    expect(source.state.contexts[0].items[0].value).toBe("43");
+  });
+
+  it("reports why the module could not be read, until it can be", async () => {
+    await open();
+    await until(() => source.state.contexts.length === 1);
+    server.helper.failLs = "UndefVarError: `Gone` not defined";
+    await source.setModule("Main.Gone");
+    expect(source.state.problem).toMatch(/Gone/);
+    expect(source.state.busy).toBe(false);
+    server.helper.failLs = null;
+    await source.setModule("Main");
+    expect(source.state.problem).toBeUndefined();
+  });
+
+  it("interrupts the REPL, and says when nothing is running", async () => {
+    await open();
+    let error;
+    try { await source.interrupt(); } catch (e) { error = e; }
+    expect(error && error.message).toMatch(/nothing is running/);
+    server.helper.busy = true;
+    await source.interrupt();
+    expect(server.helper.interrupts).toBe(1);
   });
 
   it("ends when the REPL goes away", async () => {
@@ -147,6 +193,21 @@ describe("WorkspaceModel following a REPL", () => {
   });
 
   const variableNames = () => model.rows().filter((r) => r.kind === "variable").map((r) => r.name);
+
+  it("says when the REPL is running or the module could not be read", async () => {
+    expect(model.stale).toBe(false);
+    server.helper.busyEvent();
+    await until(() => model.stale, "stale while running");
+    expect(model.statusText()).toBe("REPL: Main (running; values as they were before)");
+    expect(variableNames()).toContain("x");
+    server.helper.changed();
+    await until(() => !model.stale, "fresh again");
+    expect(model.statusText()).toBe("REPL: Main");
+    server.helper.failLs = "UndefVarError: `Gone` not defined";
+    await model.refresh();
+    expect(model.statusText()).toMatch(/^REPL: Main \(could not read it: UndefVarError/);
+    expect(model.stale).toBe(false);
+  });
 
   it("shows the module as one scope, not stale", () => {
     expect(model.statusText()).toBe("REPL: Main");

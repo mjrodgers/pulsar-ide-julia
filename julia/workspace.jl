@@ -11,6 +11,13 @@
 #   modules             the paths of the loaded modules reachable from Main: {"id":N,"ok":true,"names":["Main","Main.Foo",...]}
 #   children <ref>      the fields / elements / entries of a value listed earlier (refs die at the next `ls`)
 #   ping
+#   interrupt           interrupt what the REPL is running (code sent from Pulsar, or typed); an error if nothing is running
+#
+# While the REPL is running something, `ls`, `children` and `modules` are answered with {"ok":false,"busy":true,...}
+# instead: the values may be changing under the user's code, and reading them from another thread at the same time is
+# not safe. Otherwise they are read on the main thread, between the REPL's own work, never alongside it. The helper also
+# says so by itself, with {"event":"busy"}, when it notices that the REPL started running something, and sends
+# {"event":"changed"} when the REPL is free again, so Pulsar reads the module again.
 #
 #   eval <id>           evaluate the request in `<evaldir>/<id>.jl`; answered at once, the code runs when the REPL is free
 #
@@ -170,17 +177,18 @@ catch
     UNDEF
 end
 
+# The variables of a module, at most MAX_MODULE_ITEMS of them (a package can define thousands): (items, more).
+function capped_module_items(mod::Module)
+    items = module_items(mod)
+    length(items) > MAX_MODULE_ITEMS || return items, false
+    items = items[1:MAX_MODULE_ITEMS]
+    items[end] = merge(items[end], (truncated = true,))
+    return items, true
+end
+
 # The parts of a value: (items, more) where `more` says the list was cut at MAX_CHILDREN.
 function child_items(x)
-    if x isa Module
-        items = module_items(x)
-        if length(items) > MAX_MODULE_ITEMS
-            items = items[1:MAX_MODULE_ITEMS]
-            items[end] = merge(items[end], (truncated = true,))
-            return items, true
-        end
-        return items, false
-    end
+    x isa Module && return capped_module_items(x)
 
     pairs = Pair{String,Any}[]
     more = false
@@ -320,6 +328,10 @@ function reply_names(id::Integer, names)
     return String(take!(io))
 end
 
+function reply_busy(id::Integer)
+    return string("{\"id\":", id, ",\"ok\":false,\"busy\":true,\"error\":\"The REPL is busy; the workspace is read again when it is free.\"}")
+end
+
 function reply_error(id::Integer, message::AbstractString)
     io = IOBuffer()
     print(io, "{\"id\":", id, ",\"ok\":false,\"error\":"); jstring(io, message); print(io, '}')
@@ -337,18 +349,46 @@ function send(sock, line::AbstractString)
     end
 end
 
-function handle(sock, line::AbstractString)
-    parts = split(line, '\t')
-    id = tryparse(Int, parts[1])
-    id === nothing && return
-    op = length(parts) >= 2 ? parts[2] : ""
-    arg = length(parts) >= 3 ? join(parts[3:end], '\t') : ""
+# --- is the REPL running something? ---------------------------------------------------------------
+# `evaluating`: code from Pulsar is running (see `run_eval`). Code typed at the prompt: the REPL backend's `in_eval`.
+const evaluating = Threads.Atomic{Bool}(false)
+
+function repl_in_eval()
+    try
+        backend = Base.active_repl_backend
+        return backend !== nothing && backend.in_eval
+    catch
+        return false
+    end
+end
+
+busy() = evaluating[] || repl_in_eval()
+
+# Interrupts the main thread as Ctrl-C in the terminal would: Julia turns SIGINT into an InterruptException in the code
+# running there. Code sent from Pulsar runs while the REPL's prompt reads the keyboard, so Ctrl-C in the terminal does
+# not reach it; this does. (On Windows, `raise` is the closest there is; it may not reach running code.)
+function interrupt_main()
+    if Sys.iswindows()
+        ccall(:raise, Cint, (Cint,), 2)
+    else
+        ccall(:kill, Cint, (Cint, Cint), getpid(), 2)
+    end
+    return nothing
+end
+
+# --- requests ----------------------------------------------------------------------------------------
+# Reading values: on the main thread (see `inspect_queue`), and only while the REPL is free.
+const INSPECT_OPS = ("ls", "children", "modules")
+
+function inspect(sock, id::Integer, op::AbstractString, arg::AbstractString)
+    busy() && return send(sock, reply_busy(id))   # it may have started while this waited its turn
     try
         if op == "ls"
             mod = resolve_module(arg)
             empty!(refs)
             watched[] = mod
-            send(sock, reply(id, module_items(mod); module_name = string(mod)))
+            items, _ = capped_module_items(mod)
+            send(sock, reply(id, items; module_name = string(mod)))
         elseif op == "children"
             ref = parse(Int, arg)
             haskey(refs, ref) || error("this value is out of date; refresh the workspace")
@@ -356,11 +396,37 @@ function handle(sock, line::AbstractString)
             send(sock, reply(id, items))
         elseif op == "modules"
             send(sock, reply_names(id, all_modules()))
+        end
+    catch e
+        send(sock, reply_error(id, sprint(showerror, e)))
+    end
+    return nothing
+end
+
+function handle(sock, line::AbstractString)
+    parts = split(line, '\t')
+    id = tryparse(Int, parts[1])
+    id === nothing && return
+    op = length(parts) >= 2 ? parts[2] : ""
+    arg = length(parts) >= 3 ? join(parts[3:end], '\t') : ""
+    try
+        if op in INSPECT_OPS
+            busy() && return send(sock, reply_busy(id))
+            queue = inspect_queue[]
+            if queue === nothing
+                inspect(sock, id, op, arg)
+            else
+                put!(queue, (sock, id, String(op), String(arg)))
+            end
         elseif op == "eval"
             queue = eval_queue[]
             n = tryparse(Int, strip(arg))
             (queue === nothing || n === nothing) && error("cannot evaluate this request")
             put!(queue, n)
+            send(sock, reply(id, []))
+        elseif op == "interrupt"
+            busy() || error("nothing is running")
+            interrupt_main()
             send(sock, reply(id, []))
         elseif op == "ping"
             send(sock, reply(id, []))
@@ -404,14 +470,23 @@ function fingerprint(mod::Module)
     return h
 end
 
+# Looks for changes once a second, but not while the REPL is running something (it says when that starts); when it is
+# free again the module is announced as changed in any case, so that a "busy" answer is followed by a fresh reading.
 function watch(sock)
     last = Base.invokelatest(fingerprint, watched[])
+    was_busy = false
     while isopen(sock)
         sleep(1.0)
         try
+            if busy()
+                was_busy || send(sock, "{\"event\":\"busy\"}")
+                was_busy = true
+                continue
+            end
             fp = Base.invokelatest(fingerprint, watched[])
-            if fp != last
+            if fp != last || was_busy
                 last = fp
+                was_busy = false
                 send(sock, "{\"event\":\"changed\"}")
             end
         catch
@@ -646,10 +721,19 @@ function redraw_prompt()
     return nothing
 end
 
+# Code typed at the prompt runs first: sent code waits for it, as if it had been typed after it.
+function wait_for_repl()
+    while repl_in_eval()
+        sleep(0.05)
+    end
+end
+
 # Evaluates one request. At an idle prompt: wipe the prompt line, run, show the result and draw the prompt again.
 function run_eval(id::Integer)
+    wait_for_repl()
     idle = repl_idle()
     idle && print(stdout, "\r\e[2K")
+    evaluating[] = true
     try
         value = eval_request(id)
         if idle && value !== nothing
@@ -660,16 +744,41 @@ function run_eval(id::Integer)
             end
         end
     finally
+        evaluating[] = false
         flush(stdout)
         idle && redraw_prompt()
     end
     return nothing
 end
 
+# Runs `f(job)` for each job put on `queue`, on the task that calls it, until the queue is closed. An error in one job
+# (an interrupt included) is reported and the next job runs; an interrupt that arrives while waiting is ignored.
+function worker(f, queue::Channel, what::AbstractString)
+    while true
+        job = try
+            take!(queue)
+        catch
+            isopen(queue) || break
+            continue
+        end
+        try
+            # invokelatest: this loop keeps the world it started in, and from Julia 1.12 on an older world does not
+            # see globals defined after it (a package loaded or a module defined since the REPL started).
+            Base.invokelatest(f, job)
+        catch err
+            err isa InterruptException || @warn "Pulsar: could not $what" exception = (err, catch_backtrace())
+        end
+    end
+end
+
+const inspect_queue = Ref{Union{Channel{Tuple{Any,Int,String,String}},Nothing}}(nothing)
+
 function stop()
-    queue = eval_queue[]
-    eval_queue[] = nothing
-    queue === nothing || close(queue)
+    for q in (eval_queue, inspect_queue)
+        queue = q[]
+        q[] = nothing
+        queue === nothing || close(queue)
+    end
     sock = connection[]
     connection[] = nothing
     sock !== nothing && isopen(sock) && close(sock)
@@ -679,25 +788,22 @@ end
 """
     start(pipe)
 
-Connect to the socket Pulsar listens on and serve requests in the background. Uses an interactive thread when
-Julia has one (so the workspace stays responsive while the REPL is busy), otherwise the REPL's own thread.
+Connect to the socket Pulsar listens on and serve requests in the background. Requests are received on an
+interactive thread when Julia has one (so they are answered, if only with "busy", while the REPL is running something),
+otherwise on the REPL's own thread; values are read on the main thread.
 """
 function start(pipe::AbstractString; evaldir::AbstractString = "")
     stop()
     EVAL_DIR[] = String(evaldir)
-    # The worker is created here, on the main thread, so the user's code runs there as it does at the REPL
-    # (the socket tasks below may run on an interactive thread).
+    # The workers are created here, on the main thread: the user's code runs there as it does at the REPL, and values
+    # are read there between the REPL's own work, never at the same time (the socket tasks below may run on an
+    # interactive thread).
     queue = Channel{Int}(256)
     eval_queue[] = queue
-    @async for id in queue
-        try
-            # invokelatest: this loop keeps the world it started in, and from Julia 1.12 on an older world does not
-            # see globals defined after it (a package loaded or a module defined since the REPL started).
-            Base.invokelatest(run_eval, id)
-        catch err
-            @warn "Pulsar: could not evaluate the code" exception = (err, catch_backtrace())
-        end
-    end
+    @async worker(run_eval, queue, "evaluate the code")
+    inspections = Channel{Tuple{Any,Int,String,String}}(256)
+    inspect_queue[] = inspections
+    @async worker(job -> inspect(job...), inspections, "read the workspace")
     sock = try
         Sockets.connect(pipe)
     catch e

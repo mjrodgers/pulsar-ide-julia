@@ -187,6 +187,63 @@ end
     @test W.revise_first(IOBuffer()) === nothing
 end
 
+@testset "busy, interrupting and robust workers" begin
+    # while something runs, values are not read
+    io = IOBuffer()
+    W.evaluating[] = true
+    try
+        @test W.busy()
+        W.handle(io, "1\tls\tMain")
+        @test occursin("\"id\":1,\"ok\":false,\"busy\":true", String(take!(io)))
+        W.handle(io, "2\tchildren\t1")
+        @test occursin("\"busy\":true", String(take!(io)))
+        W.inspect(io, 3, "modules", "")   # queued before it started: checked again
+        @test occursin("\"busy\":true", String(take!(io)))
+        W.handle(io, "4\tping")
+        @test occursin("\"id\":4,\"ok\":true", String(take!(io)))   # the rest still answers
+    finally
+        W.evaluating[] = false
+    end
+    @test !W.busy()
+    W.handle(io, "5\tinterrupt")   # nothing to interrupt (and no signal is sent)
+    @test occursin("nothing is running", String(take!(io)))
+    W.inspect(io, 6, "ls", "Main")
+    @test occursin("\"id\":6,\"ok\":true,\"module\":\"Main\"", String(take!(io)))
+
+    # sent code is marked as running while it runs, and only then
+    dir = mktempdir()
+    W.EVAL_DIR[] = dir
+    write(joinpath(dir, "1.jl"), "Main\n\n1\n\nseen_evaluating = Main.var\"#PulsarIDEWorkspace\".evaluating[]")
+    W.run_eval(1)
+    @test Base.invokelatest(getglobal, Main, :seen_evaluating) === true   # (a global newer than this code: Julia 1.12)
+    @test !W.evaluating[]
+
+    # big modules are cut off
+    big = Module(:PulsarBig)
+    for i in 1:(W.MAX_MODULE_ITEMS + 50)
+        Core.eval(big, :($(Symbol("v", i)) = $i))
+    end
+    items, more = Base.invokelatest(W.capped_module_items, big)   # (as the helper calls it: names newer than this code)
+    @test more
+    @test length(items) == W.MAX_MODULE_ITEMS
+    @test items[end].truncated
+    @test !W.capped_module_items(Main.TestOuter.TestInner)[2]
+
+    # a worker survives errors in a job and interrupts while it waits, and stops when its queue is closed
+    done = Int[]
+    queue = Channel{Int}(10)
+    t = @async W.worker(n -> (n == 2 && error("job 2 fails"); push!(done, n)), queue, "test")
+    yield()
+    schedule(t, InterruptException(); error = true)   # arrives while it waits for a job
+    yield()
+    @test !istaskdone(t)
+    put!(queue, 1); put!(queue, 2); put!(queue, 3)
+    @test timedwait(() -> length(done) == 2, 10.0) == :ok
+    @test done == [1, 3]
+    close(queue)
+    @test timedwait(() -> istaskdone(t), 10.0) == :ok
+end
+
 # A real package, precompiled into a temporary depot, to check which module its files are evaluated in.
 @testset "package files" begin
     depot = mktempdir()
@@ -317,6 +374,26 @@ end
         @eval Main newvar = 1
         @test timedwait(() -> !isempty(event[]), 10.0) == :ok
         @test event[] == "{\"event\":\"changed\"}"
+
+        # while something runs: "busy", and a fresh announcement when it is free again
+        # (skipping any change announcement still on its way)
+        events = String[]
+        answer(conn) = (line = readline(conn); startswith(line, "{\"event\"") ? (push!(events, line); answer(conn)) : line)
+        println(conn, "41\tinterrupt")
+        @test occursin("nothing is running", answer(conn))
+        W.evaluating[] = true
+        println(conn, "40\tls\tMain")
+        @test occursin("\"id\":40,\"ok\":false,\"busy\":true", answer(conn))
+        sleep(1.5)   # the watcher looks once a second
+        W.evaluating[] = false
+        @async while true
+            line = readline(conn)
+            push!(events, line)
+            (line == "{\"event\":\"changed\"}" || isempty(line)) && break
+        end
+        @test timedwait(() -> "{\"event\":\"changed\"}" in events, 10.0) == :ok
+        @test "{\"event\":\"busy\"}" in events
+        @test findfirst(==("{\"event\":\"busy\"}"), events) < findlast(==("{\"event\":\"changed\"}"), events)
 
         W.stop()
         close(server)

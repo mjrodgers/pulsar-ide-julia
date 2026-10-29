@@ -28,6 +28,7 @@
       "pulsar-ide-julia:send-cell",
       "pulsar-ide-julia:send-cell-and-advance",
       "pulsar-ide-julia:send-file",
+      "pulsar-ide-julia:interrupt-repl",
       "pulsar-ide-julia:send-selection-or-definition-and-advance",
       "pulsar-ide-julia:activate-environment",
       "pulsar-ide-julia:activate-environment-in-current-folder",
@@ -224,7 +225,7 @@
           "title": "Threads",
           "type": "string",
           "default": "",
-          "description": "`--threads`: a number or `auto`. Empty: Julia's default.",
+          "description": "`--threads`: a number, `auto`, or `auto,1` (default, interactive). Empty: Julia's default (from Julia 1.12, one interactive thread, which lets the workspace pane and Interrupt REPL answer while code runs).",
           "order": 3
         },
         "flags": {

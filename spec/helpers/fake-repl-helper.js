@@ -31,6 +31,7 @@ class FakeHelper {
 
   send(obj) { if (!this.socket.destroyed) this.socket.write(JSON.stringify(obj) + "\n"); }
   changed() { this.send({ event: "changed" }); }
+  busyEvent() { this.send({ event: "busy" }); }
 
   ref(children) { const r = this.nextRef++; this.refs.set(r, children); return r; }
   item(name, value, type, kind, children) {
@@ -55,6 +56,16 @@ class FakeHelper {
     const arg = rest.join("\t");
     this.requests.push({ id, op, arg });
     if (this.options && this.options.silent) return;
+    // `busy`: the REPL is running something; values are not read (see julia/workspace.jl).
+    if (this.busy && (op === "ls" || op === "children" || op === "modules")) {
+      return this.send({ id, ok: false, busy: true, error: "The REPL is busy; the workspace is read again when it is free." });
+    }
+    if (op === "interrupt") {
+      if (!this.busy) return this.send({ id, ok: false, error: "nothing is running" });
+      this.interrupts = (this.interrupts || 0) + 1;
+      return this.send({ id, ok: true, items: [] });
+    }
+    if (this.failLs && op === "ls") return this.send({ id, ok: false, error: this.failLs });
     if (op === "ls") {
       return setImmediate(() => this.send({ id, ok: true, module: arg || "Main", items: this.listing() }));
     }

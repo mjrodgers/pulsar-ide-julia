@@ -84,6 +84,35 @@ describe("ReplController and the workspace bridge", () => {
   });
 });
 
+describe("ReplController: Interrupt REPL", () => {
+  const editor = fakeEditor({ text: "x = 1", filePath: null });
+
+  it("asks the helper to interrupt the REPL", async () => {
+    let asked = 0;
+    const { repl, log } = setup({ editor, bridge: { source: {}, interrupt: async () => { asked++; } } });
+    expect(await repl.interruptRepl()).toBe(true);
+    expect(asked).toBe(1);
+    expect(log.notes).toEqual([]);
+  });
+
+  it("says so when nothing is running", async () => {
+    const { repl, log } = setup({ editor, bridge: { source: {}, interrupt: async () => { throw new Error("nothing is running"); } } });
+    expect(await repl.interruptRepl()).toBe(false);
+    expect(log.notes).toEqual([["addInfo", "Julia REPL: nothing is running."]]);
+  });
+
+  it("points to Ctrl-C without a connected helper, or when it does not answer", async () => {
+    const { repl, log } = setup({ editor, bridge: { source: null, interrupt: async () => {} } });
+    await repl.interruptRepl();
+    expect(log.notes[0][0]).toBe("addInfo");
+    expect(log.notes[0][1]).toMatch(/Ctrl-C/);
+    const late = setup({ editor, bridge: { source: {}, interrupt: async () => { throw Object.assign(new Error("late"), { code: "timeout" }); } } });
+    await late.repl.interruptRepl();
+    expect(late.log.notes[0][0]).toBe("addWarning");
+    expect(late.log.notes[0][1]).toMatch(/Ctrl-C/);
+  });
+});
+
 describe("ReplController", () => {
   it("opens a terminal and starts Julia in it", async () => {
     const editor = fakeEditor({ text: "x = 1", filePath: null });
