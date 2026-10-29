@@ -404,6 +404,18 @@ describe("ReplBridge", () => {
         expect(fs.existsSync(path.join(bridge.evalDir, "1.jl"))).toBe(true);
       });
 
+      it("asks for the result when told to, and passes it on", async () => {
+        const results = [];
+        const written = [];
+        bridge.onDidReportResult((m) => results.push(m));
+        const id = await bridge.evalCode({ code: "40 + 2" }, { result: true, onWritten: (n) => written.push([n, results.length]) });
+        expect(id).toBe(1);
+        expect(written).toEqual([[1, 0]]); // told before the request went out
+        expect(helper.requests.find((r) => r.op === "eval").arg).toBe("1 result");
+        await until(() => results.length === 1, "result");
+        expect(results[0]).toEqual({ event: "result", id: 1, ms: 3, kind: "value", text: "42" });
+      });
+
       it("rejects, and removes the file, when the helper refuses", async () => {
         helper.options = { failEval: true };
         let error = null;

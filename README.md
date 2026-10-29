@@ -140,6 +140,7 @@ not inline in the editor.
 | Send Selection Or Definition And Advance | `shift-enter` | The same, then the cursor moves to the next line of code (blank lines and comments are skipped) |
 | Send Cell / Send Cell And Advance | `alt-enter` / `alt-shift-enter` | The cell between `##`, `#---` or `# %%` markers |
 | Send File | `ctrl-shift-enter` | `include("file")` (saves first) |
+| Clear Results | – | Removes the inline results from the file (see Inline results) |
 | Interrupt REPL | – | Stops what the REPL is running, like `Ctrl-C` in its terminal. `Ctrl-C` does not reach code sent from Pulsar (it runs alongside the prompt), this does. Needs the workspace helper |
 | Activate Environment | – | `Pkg.activate` on the file's project (nearest `Project.toml`) |
 | Activate Environment In Current Folder / In Parent Folder | – | `Pkg.activate` on the file's folder, or the folder above it |
@@ -277,6 +278,23 @@ The first send after opening a REPL waits until Julia has started and the helper
 that, or if the helper cannot load, code is typed in as before). When that REPL exits, the next send starts a new one. If the REPL does not answer a send in time, you get a warning and the code runs when the REPL is free. Turn it off with **REPL → Run sent code in its module**.
 This is separate from the Workspace pane's module menu, which only chooses what the pane lists. "Send file" still runs
 `include(file)` in `Main`.
+
+### Inline results
+
+Turn on **REPL → Inline results** to see the result of sent code under it in the editor, as in Hydrogen or Juno (the
+terminal shows the output as before):
+
+* the value on one line; click it to see all of it, as the REPL would print it;
+* a check mark for `nothing` or a result hidden with a trailing `;`;
+* plots and other values that can be drawn as PNG or SVG (Plots, Makie, images) as a picture; click it to open it in a
+  tab;
+* errors, with the line of the file where they happened; click to see the stack trace;
+* how long the code took to run, and a "running…" line until then.
+
+A result goes away when you edit its code or send code ending on the same line again; hover it and click × to dismiss
+it, or use **Clear Results** (`pulsar-ide-julia:clear-results`) for the whole file. It needs the workspace helper and
+**Run sent code in its module** (code typed into the terminal has no result to show). Pictures are at most 400 pixels
+high; to change that, add to your stylesheet: `atom-text-editor .pulsar-ide-julia-result .result-image { max-height: 600px; }`.
 
 ### Variables of the REPL
 

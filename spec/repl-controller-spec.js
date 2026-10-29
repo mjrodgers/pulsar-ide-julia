@@ -218,6 +218,46 @@ describe("ReplController", () => {
         evalCode: async (req) => { written.push(req); },
       }, over);
     };
+    describe("inline results", () => {
+      const fakeResults = () => {
+        const log = [];
+        return { log, begin: (id, editor, range) => log.push(["begin", id, range]), cancel: (id) => log.push(["cancel", id]) };
+      };
+
+      it("asks for the result and shows where it will go, when the setting is on", async () => {
+        const results = fakeResults();
+        const calls = [];
+        const { repl } = withBridge({
+          evalCode: async (req, options) => { calls.push(options.result); options.onWritten(7); },
+        }, { editor: { selection: [[6, 4], [6, 9]] }, setup: { settings: { "repl.inlineResults": true }, deps: { results } } });
+        await repl.sendSelectionOrDefinition();
+        expect(calls).toEqual([true]);
+        expect(results.log.length).toBe(1);
+        expect(results.log[0][0]).toBe("begin");
+        expect(results.log[0][1]).toBe(7);
+      });
+
+      it("takes the line away again when the code could not be handed over", async () => {
+        const results = fakeResults();
+        const { repl } = withBridge({
+          evalCode: async (req, options) => { options.onWritten(3); throw new Error("cannot evaluate this request"); },
+        }, { editor: { selection: [[6, 4], [6, 9]] }, setup: { settings: { "repl.inlineResults": true }, deps: { results } } });
+        await repl.sendSelectionOrDefinition();
+        expect(results.log.map((e) => e[0])).toEqual(["begin", "cancel"]);
+      });
+
+      it("does nothing of the kind when the setting is off", async () => {
+        const results = fakeResults();
+        const calls = [];
+        const { repl } = withBridge({
+          evalCode: async (req, options) => { calls.push(options.result); options.onWritten(1); },
+        }, { editor: { selection: [[6, 4], [6, 9]] }, setup: { deps: { results } } });
+        await repl.sendSelectionOrDefinition();
+        expect(calls).toEqual([false]);
+        expect(results.log).toEqual([]);
+      });
+    });
+
     const withBridge = (over, extra = {}) => {
       const bridge = fakeBridge(over);
       return { bridge, ...setup({ editor: fakeEditor({ text, filePath: "/w/a.jl", ...extra.editor }), symbols, bridge, ...extra.setup }) };

@@ -30,6 +30,10 @@ x = 1
 end
 end
 
+# A value that can be drawn as an image (like a plot).
+struct PulsarPicture end
+Base.show(io::IO, ::MIME"image/svg+xml", ::PulsarPicture) = print(io, "<svg xmlns=\"http://www.w3.org/2000/svg\"/>")
+
 @testset "bounded text" begin
     @test W.summarize(42) == "42"
     @test W.summarize("hi") == "\"hi\""
@@ -244,6 +248,38 @@ end
     @test timedwait(() -> istaskdone(t), 10.0) == :ok
 end
 
+@testset "results for inline display" begin
+    dir = mktempdir()
+    W.EVAL_DIR[] = dir
+    request(id, code; file = "/w/r.jl", line = 1) = (write(joinpath(dir, string(id, ".jl")), join(["Main", file, line, "", code], '\n')); id)
+    message(id, code; kw...) = W.result_message(id, W.evaluate_request(request(id, code; kw...); err_io = IOBuffer()), 7)
+
+    m = message(1, "[1, 2, 3]")
+    @test startswith(m, "{\"event\":\"result\",\"id\":1,\"ms\":7,\"kind\":\"value\"")
+    @test occursin("\"text\":\"[1, 2, 3]\"", m)
+    @test occursin("\"full\":\"3-element Vector{Int64}:\\n 1\\n 2\\n 3\"", m)
+    @test !occursin("\"full\"", message(2, "1 + 1"))   # nothing more to see
+    @test occursin("\"kind\":\"nothing\"", message(3, "nothing"))
+    @test occursin("\"kind\":\"nothing\"", message(4, "1 + 1;"))
+
+    m = message(5, "a = 1\nerror(\"boom\")"; file = joinpath(dir, "e.jl"), line = 10)
+    @test occursin("\"kind\":\"error\"", m)
+    @test occursin("\"text\":\"boom\"", m)
+    @test occursin("\"line\":11", m)
+    @test occursin("\"full\":\"ERROR: boom", m)
+    @test occursin("\"line\":0", message(6, "error(\"elsewhere\")"; file = ""))
+
+    m = message(7, "PulsarPicture()")
+    @test occursin("\"kind\":\"image\",\"mime\":\"image/svg+xml\"", m)
+    file = joinpath(dir, "result-7.svg")
+    @test occursin(sprint(W.jstring, file), m)
+    @test read(file, String) == "<svg xmlns=\"http://www.w3.org/2000/svg\"/>"
+
+    # how a request went
+    @test W.evaluate_request(request(8, "2 + 2"); err_io = IOBuffer()).status === :ok
+    @test W.evaluate_request(99; err_io = IOBuffer()).status === :unreadable
+end
+
 # A real package, precompiled into a temporary depot, to check which module its files are evaluated in.
 @testset "package files" begin
     depot = mktempdir()
@@ -353,6 +389,16 @@ end
         @test Main.TestOuter.pulsar_socket_probe == 5
         println(conn, "34\teval\tnope")
         @test occursin("\"ok\":false", readline(conn))
+
+        # with "result", the result follows when the code has run
+        write(joinpath(evaldir, "9.jl"), "Main\n/w/a.jl\n1\n\n40 + 2")
+        println(conn, "36\teval\t9 result")
+        got = String[]
+        while !any(l -> startswith(l, "{\"event\":\"result\""), got)   # (a "busy" event may come in between)
+            push!(got, readline(conn))
+        end
+        @test any(l -> occursin("\"id\":36,\"ok\":true", l), got)
+        @test any(l -> occursin("{\"event\":\"result\",\"id\":9,", l) && occursin("\"text\":\"42\"", l), got)
 
         # a module defined after the helper started is still found (inside TestOuter, so Main's watcher stays quiet)
         Core.eval(Main.TestOuter, :(module PulsarLate end))

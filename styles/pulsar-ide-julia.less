@@ -41,3 +41,69 @@ atom-text-editor .highlight.pulsar-ide-julia-sent .region {
   .row.starting .status, .row.busy .status { color: @text-color-warning; }
   .row.stopped .status { color: @text-color-subtle; }
 }
+
+// --- Inline results (REPL → Inline results) ---------------------------------------------------
+// Under the code that was sent. Colours come from the UI theme, so they follow light and dark themes.
+atom-text-editor .pulsar-ide-julia-result {
+  display: inline-block;
+  max-width: 100%;
+  margin: 1px 0 3px;
+  padding: 0 0.6em;
+  border-left: 2px solid @background-color-info;
+  border-radius: 0 @component-border-radius @component-border-radius 0;
+  background-color: fade(@background-color-info, 10%);
+  color: @text-color;
+  line-height: 1.6;
+  white-space: nowrap;
+  box-sizing: border-box;
+
+  .result-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5em;
+    min-width: 0;
+  }
+  .result-icon { color: @text-color-subtle; flex: none; }
+  .result-icon::before { margin-right: 0; font-size: 0.9em; }
+  .result-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .result-time { color: @text-color-subtle; font-size: 0.85em; flex: none; }
+  .result-close {
+    flex: none;
+    color: @text-color-subtle;
+    cursor: pointer;
+    visibility: hidden;
+    &::before { margin-right: 0; font-size: 0.85em; }
+    &:hover { color: @text-color-highlight; }
+  }
+  &:hover .result-close { visibility: visible; }
+
+  &.expandable .result-header { cursor: pointer; }
+  .result-full {
+    margin: 0.2em 0 0.3em;
+    padding: 0;
+    max-height: 30em;
+    overflow: auto;
+    background: none;
+    border: none;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    white-space: pre;
+  }
+  .result-image {
+    display: block;
+    max-width: 100%;
+    max-height: 400px;
+    margin: 0.3em 0;
+    cursor: pointer;
+    background-color: white; // most plots assume a white page
+  }
+
+  &.pending { opacity: 0.7; .loading { margin-right: 0.2em; } }
+  &.nothing { border-left-color: @background-color-success; background-color: fade(@background-color-success, 8%); .result-icon { color: @text-color-success; } }
+  &.error {
+    border-left-color: @background-color-error;
+    background-color: fade(@background-color-error, 10%);
+    .result-icon, .result-text { color: @text-color-error; }
+  }
+}

@@ -29,6 +29,7 @@
       "pulsar-ide-julia:send-cell-and-advance",
       "pulsar-ide-julia:send-file",
       "pulsar-ide-julia:interrupt-repl",
+      "pulsar-ide-julia:clear-results",
       "pulsar-ide-julia:send-selection-or-definition-and-advance",
       "pulsar-ide-julia:activate-environment",
       "pulsar-ide-julia:activate-environment-in-current-folder",
@@ -238,12 +239,19 @@
           "description": "Evaluate sent code in the module it belongs to, with the file's name and line numbers. Off: type it into the terminal instead. Needs the helper.",
           "order": 6
         },
+        "inlineResults": {
+          "title": "Inline results",
+          "type": "boolean",
+          "default": false,
+          "description": "Show the result of sent code under it in the editor: the value (click it to see all of it), plots and images, errors with their line, and how long it took. The terminal shows the output as before. Needs the helper and **Run sent code in its module**.",
+          "order": 7
+        },
         "workspaceModule": {
           "title": "Workspace module",
           "type": "string",
           "default": "Main",
           "description": "The module the workspace pane lists, e.g. `Main.MyPackage`, or `@follow` for the one at the cursor. Set from the pane's menu.",
-          "order": 7
+          "order": 8
         },
         "sendVia": {
           "title": "Typing code into the terminal",
@@ -260,14 +268,14 @@
               "description": "Terminal's run-selected-text command"
             }
           ],
-          "order": 8
+          "order": 9
         },
         "bracketedPaste": {
           "title": "Bracketed paste",
           "type": "boolean",
           "default": false,
           "description": "Type multi-line code as a single paste. Try this if typed blocks misbehave.",
-          "order": 9
+          "order": 10
         }
       }
     },

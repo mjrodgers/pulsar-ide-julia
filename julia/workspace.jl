@@ -20,6 +20,13 @@
 # {"event":"changed"} when the REPL is free again, so Pulsar reads the module again.
 #
 #   eval <id>           evaluate the request in `<evaldir>/<id>.jl`; answered at once, the code runs when the REPL is free
+#   eval <id> result    the same, and report the result when it has run (inline results in the editor):
+#                       {"event":"result","id":<id>,"ms":<milliseconds>,"kind":...} where kind is
+#                         "value"   "text" (one line) and, when there is more to see, "full" (as the REPL shows it)
+#                         "image"   also "mime" and "file": the value drawn as PNG or SVG, in <evaldir>
+#                         "nothing" `nothing`, or a result hidden with a trailing `;`
+#                         "error"   "text" (the first line of the message), "full" (with the stack trace) and "line"
+#                                   (where it happened in the source file, when it did; 0 otherwise)
 #
 # Evaluating code (module-aware "send"): Pulsar writes the code to `<evaldir>/<id>.jl` (module path, source file, first
 # line number, package as `<uuid> <name>` or an empty line, one per line, then the code) and sends `eval <id>`. A worker
@@ -71,18 +78,20 @@ function Base.write(io::LimitedIO, b::UInt8)
     return write(io.buf, b)
 end
 
-# The text `f(io)` prints: one line, at most `limit` bytes, "…" appended when it was cut.
-function limited(f, limit::Integer = MAX_SUMMARY)
+# The text `f(io)` prints: one line, at most `limit` bytes, "…" appended when it was cut. With `oneline = false` the
+# lines are kept, and the text is printed as the REPL prints it (not compact).
+function limited(f, limit::Integer = MAX_SUMMARY; oneline::Bool = true)
     io = LimitedIO(limit)
     cut = false
     try
-        f(IOContext(io, :limit => true, :compact => true))
+        f(oneline ? IOContext(io, :limit => true, :compact => true) :
+                    IOContext(io, :limit => true, :displaysize => (30, 100)))
     catch e
         e isa LimitReached || rethrow()
         cut = true
     end
     s = filter(isvalid, String(take!(io.buf)))
-    s = replace(s, r"\s*\n\s*" => " ")
+    oneline && (s = replace(s, r"\s*\n\s*" => " "))
     return cut ? s * "…" : s
 end
 
@@ -420,9 +429,10 @@ function handle(sock, line::AbstractString)
             end
         elseif op == "eval"
             queue = eval_queue[]
-            n = tryparse(Int, strip(arg))
+            words = split(arg)
+            n = isempty(words) ? nothing : tryparse(Int, words[1])
             (queue === nothing || n === nothing) && error("cannot evaluate this request")
-            put!(queue, n)
+            put!(queue, (n, "result" in words[2:end]))
             send(sock, reply(id, []))
         elseif op == "interrupt"
             busy() || error("nothing is running")
@@ -670,21 +680,19 @@ function eval_in(mod::Module, code::AbstractString, file::AbstractString)
     end
 end
 
-# Evaluates request `id` (see the header). Returns the value, or nothing for a failure or a trailing `;`.
-function eval_request(id::Integer; err_io::IO = stderr)
+# Evaluates request `id` (see the header), reporting errors to `err_io`. Returns (status, value, error, backtrace, file)
+# with status :ok, :suppressed (a trailing `;`), :error, or :unreadable (the request could not be read).
+function evaluate_request(id::Integer; err_io::IO = stderr)
     file = joinpath(EVAL_DIR[], string(id, ".jl"))
+    failed(why) = (println(err_io, "Pulsar: ", why); (status = :unreadable, value = nothing, error = nothing, backtrace = nothing, file = ""))
     text = try
         read(file, String)
     catch
-        println(err_io, "Pulsar: could not read the code to evaluate ($file).")
-        return nothing
+        return failed("could not read the code to evaluate ($file).")
     end
     rm(file; force = true)
     parts = split(text, '\n'; limit = 5)
-    if length(parts) != 5
-        println(err_io, "Pulsar: unreadable code to evaluate.")
-        return nothing
-    end
+    length(parts) == 5 || return failed("unreadable code to evaluate.")
     srcfile = String(strip(parts[2]))
     revise_first(err_io)
     mod = eval_module(parts[1], parts[4], srcfile)
@@ -693,14 +701,101 @@ function eval_request(id::Integer; err_io::IO = stderr)
     value = try
         eval_in(mod, code, srcfile)
     catch err
-        report_error(err_io, err, catch_backtrace())
-        return nothing
+        bt = catch_backtrace()
+        report_error(err_io, err, bt)
+        return (status = :error, value = nothing, error = err, backtrace = bt, file = srcfile)
     end
-    return suppressed(parts[5]) ? nothing : value
+    status = suppressed(parts[5]) ? :suppressed : :ok
+    return (status = status, value = status === :ok ? value : nothing, error = nothing, backtrace = nothing, file = srcfile)
+end
+
+# Evaluates request `id`. Returns the value, or nothing for a failure or a trailing `;`.
+eval_request(id::Integer; err_io::IO = stderr) = evaluate_request(id; err_io).value
+
+# --- reporting a result to Pulsar (inline results) --------------------------------------------------------------------
+const MAX_FULL = 20_000   # characters of a result's full text
+
+# The value drawn as an image Pulsar can show, written next to the requests: (mime, file) or nothing.
+function save_image(id::Integer, value)
+    isempty(EVAL_DIR[]) && return nothing
+    for (mime, ext) in ((MIME"image/png"(), "png"), (MIME"image/svg+xml"(), "svg"))
+        try
+            showable(mime, value) || continue
+            path = joinpath(EVAL_DIR[], string("result-", id, ".", ext))
+            open(io -> show(io, mime, value), path, "w")
+            return (string(mime), path)
+        catch
+        end
+    end
+    return nothing
+end
+
+# The line of the source file where an error happened (the innermost frame in that file), or 0.
+function error_line(bt, file::AbstractString)
+    (bt === nothing || isempty(file)) && return 0
+    try
+        for f in stacktrace(bt)
+            same_file(String(f.file), file) && return f.line
+        end
+    catch
+    end
+    return 0
+end
+
+function result_message(id::Integer, r, ms::Integer)
+    io = IOBuffer()
+    print(io, "{\"event\":\"result\",\"id\":", id, ",\"ms\":", ms)
+    field(name, s) = (print(io, ",\"", name, "\":"); jstring(io, s))
+    if r.status === :error
+        err = r.error isa LoadError ? r.error.error : r.error
+        message = try
+            limited(io -> showerror(io, err), MAX_FULL; oneline = false)
+        catch
+            "the error could not be shown"
+        end
+        print(io, ",\"kind\":\"error\"")
+        field("text", first(split(strip(message), '\n'; limit = 2)))
+        field("full", try
+            limited(io -> report_error(io, r.error, r.backtrace), MAX_FULL; oneline = false)
+        catch
+            message
+        end)
+        print(io, ",\"line\":", error_line(r.backtrace, r.file))
+    elseif r.status === :ok && r.value !== nothing
+        value = r.value
+        image = save_image(id, value)
+        print(io, ",\"kind\":\"", image === nothing ? "value" : "image", "\"")
+        image === nothing || (field("mime", image[1]); field("file", image[2]))
+        text = summarize(value)
+        field("text", text)
+        if image === nothing
+            full = try
+                limited(io -> show(io, MIME"text/plain"(), value), MAX_FULL; oneline = false)
+            catch
+                text
+            end
+            full != text && field("full", full)
+        end
+    else
+        print(io, ",\"kind\":\"nothing\"")
+    end
+    print(io, '}')
+    return String(take!(io))
+end
+
+function send_result(id::Integer, r, ms::Integer)
+    sock = connection[]
+    sock === nothing && return nothing
+    try
+        send(sock, result_message(id, r, ms))
+    catch err
+        @warn "Pulsar: could not report the result" exception = err
+    end
+    return nothing
 end
 
 # --- the worker that evaluates ---------------------------------------------------------------------
-const eval_queue = Ref{Union{Channel{Int},Nothing}}(nothing)
+const eval_queue = Ref{Union{Channel{Tuple{Int,Bool}},Nothing}}(nothing)   # (request id, report the result)
 
 # Is the REPL waiting at its prompt (and not running something)?
 function repl_idle()
@@ -729,13 +824,18 @@ function wait_for_repl()
 end
 
 # Evaluates one request. At an idle prompt: wipe the prompt line, run, show the result and draw the prompt again.
-function run_eval(id::Integer)
+# With `report`, the result is also sent to Pulsar (see `result_message`).
+function run_eval(id::Integer; report::Bool = false)
     wait_for_repl()
     idle = repl_idle()
     idle && print(stdout, "\r\e[2K")
     evaluating[] = true
     try
-        value = eval_request(id)
+        t0 = time_ns()
+        r = evaluate_request(id)
+        ms = round(Int, (time_ns() - t0) / 1e6)
+        report && r.status !== :unreadable && send_result(id, r, ms)
+        value = r.value
         if idle && value !== nothing
             try
                 Base.invokelatest(display, value)
@@ -798,9 +898,9 @@ function start(pipe::AbstractString; evaldir::AbstractString = "")
     # The workers are created here, on the main thread: the user's code runs there as it does at the REPL, and values
     # are read there between the REPL's own work, never at the same time (the socket tasks below may run on an
     # interactive thread).
-    queue = Channel{Int}(256)
+    queue = Channel{Tuple{Int,Bool}}(256)
     eval_queue[] = queue
-    @async worker(run_eval, queue, "evaluate the code")
+    @async worker(job -> run_eval(job[1]; report = job[2]), queue, "evaluate the code")
     inspections = Channel{Tuple{Any,Int,String,String}}(256)
     inspect_queue[] = inspections
     @async worker(job -> inspect(job...), inspections, "read the workspace")
