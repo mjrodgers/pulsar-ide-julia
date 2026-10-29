@@ -47,18 +47,7 @@
       "pulsar-ide-julia:run-test",
       "pulsar-ide-julia:show-macro-expansion",
       "pulsar-ide-julia:expand-all-macros",
-      "pulsar-ide-julia:show-inferred-types",
-      "pulsar-ide-julia:debug-start-or-continue",
-      "pulsar-ide-julia:debug-file",
-      "pulsar-ide-julia:debug-continue",
-      "pulsar-ide-julia:debug-step-over",
-      "pulsar-ide-julia:debug-step-in",
-      "pulsar-ide-julia:debug-step-out",
-      "pulsar-ide-julia:debug-stop",
-      "pulsar-ide-julia:toggle-breakpoint",
-      "pulsar-ide-julia:clear-breakpoints",
-      "pulsar-ide-julia:open-workspace",
-      "pulsar-ide-julia:show-debug-output"
+      "pulsar-ide-julia:show-inferred-types"
     ]
   },
   "enhancedScopes": [
@@ -239,7 +228,7 @@
           "title": "Connect the workspace helper",
           "type": "boolean",
           "default": true,
-          "description": "Start the REPL with a small helper that lists its variables in the Julia Workspace pane and runs sent code in the right module. Needs Julia 1.9 or newer.",
+          "description": "Start the REPL with a small helper that runs sent code in the right module and lists the REPL's variables in the Workspace pane (the pane needs the `pulsar-ide-debugger` package). Needs Julia 1.9 or newer.",
           "order": 5
         },
         "moduleAware": {
@@ -313,7 +302,7 @@
     },
     "debugger": {
       "title": "Debugger",
-      "description": "Debugging with DebugAdapter.jl, which must be installed in the default environment (`@v1.x`).",
+      "description": "Debugging with DebugAdapter.jl, which must be installed in the default environment (`@v1.x`). Breakpoints, stepping and the Workspace pane come from the `pulsar-ide-debugger` package, which must be installed too.",
       "type": "object",
       "order": 5,
       "properties": {
@@ -387,18 +376,6 @@
             "type": "string"
           },
           "order": 9
-        },
-        "openWorkspace": {
-          "title": "Open the workspace pane when debugging starts",
-          "type": "boolean",
-          "default": true,
-          "order": 10
-        },
-        "openOutput": {
-          "title": "Open the output pane when the program prints",
-          "type": "boolean",
-          "default": true,
-          "order": 11
         },
         "launchArgumentsJson": {
           "title": "Extra launch arguments (JSON)",
@@ -512,6 +489,11 @@
       "versions": {
         "0.1.0": "provideRefactor",
         "0.2.0": "provideRefactorWithPrepare"
+      }
+    },
+    "debug-adapter": {
+      "versions": {
+        "0.1.0": "provideDebugAdapter"
       }
     }
   }

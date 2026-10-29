@@ -1,7 +1,4 @@
 const { splitArgs, buildAdapterCommand, buildLaunchArguments, adapterContext, BOOTSTRAP } = require("../lib/debug/launch");
-const { BreakpointStore } = require("../lib/debug/store");
-const { OutputLog } = require("../lib/debug/log");
-const { currentLocation } = require("../lib/debug/location");
 
 describe("splitArgs", () => {
   it("splits on whitespace and honours quotes", () => {
@@ -68,86 +65,5 @@ describe("adapterContext", () => {
     const exists = (p) => p === "/work/Pkg/Project.toml";
     expect(adapterContext("/work/Pkg/src/a.jl", { exists })).toEqual({ cwd: "/work/Pkg/src", projectDir: "/work/Pkg" });
     expect(adapterContext("/elsewhere/a.jl", { exists }).projectDir).toBe(null);
-  });
-});
-
-describe("BreakpointStore", () => {
-  it("toggles, lists in line order and reports changes", () => {
-    const s = new BreakpointStore();
-    const changes = [];
-    s.onDidChange((f) => changes.push(f));
-    expect(s.toggle("/a.jl", 9)).toBe(true);
-    s.toggle("/a.jl", 3);
-    expect(s.list("/a.jl").map((b) => b.line)).toEqual([3, 9]);
-    expect(s.toggle("/a.jl", 9)).toBe(false);
-    expect(s.has("/a.jl", 9)).toBe(false);
-    expect(changes).toEqual(["/a.jl", "/a.jl", "/a.jl"]);
-  });
-  it("only includes files that have breakpoints in all()", () => {
-    const s = new BreakpointStore();
-    s.toggle("/a.jl", 1);
-    s.toggle("/b.jl", 2);
-    s.toggle("/b.jl", 2);
-    expect([...s.all().keys()]).toEqual(["/a.jl"]);
-  });
-  it("keeps conditions, moves lines, and merges when two meet", () => {
-    const s = new BreakpointStore();
-    s.toggle("/a.jl", 3);
-    s.setCondition("/a.jl", 3, "x > 1");
-    s.moveLine("/a.jl", 3, 5);
-    expect(s.list("/a.jl")).toEqual([{ line: 5, condition: "x > 1" }]);
-    s.toggle("/a.jl", 6);
-    s.moveLine("/a.jl", 6, 5);
-    expect(s.list("/a.jl")).toEqual([{ line: 5, condition: "x > 1" }]);
-    expect(s.setCondition("/a.jl", 99, "y")).toBe(false);
-  });
-  it("clears one file or everything", () => {
-    const s = new BreakpointStore();
-    s.toggle("/a.jl", 1);
-    s.toggle("/b.jl", 1);
-    s.clear("/a.jl");
-    expect(s.files()).toEqual(["/b.jl"]);
-    s.clear();
-    expect(s.files()).toEqual([]);
-  });
-});
-
-describe("OutputLog", () => {
-  it("collects text and notifies", () => {
-    const log = new OutputLog();
-    const seen = [];
-    log.onDidAppend((c) => seen.push(c));
-    log.append("hello\n");
-    log.note("done");
-    expect(log.text()).toBe("hello\ndone\n");
-    expect(seen.map((c) => c.category)).toEqual(["stdout", "note"]);
-    log.append("");
-    expect(seen.length).toBe(2);
-  });
-  it("drops the oldest output past its limit", () => {
-    const log = new OutputLog();
-    log.append("a".repeat(300000));
-    log.append("b".repeat(300000));
-    expect(log.text().startsWith("b")).toBe(true);
-  });
-  it("can be cleared", () => {
-    const log = new OutputLog();
-    log.append("x");
-    log.clear();
-    expect(log.text()).toBe("");
-  });
-});
-
-describe("currentLocation", () => {
-  const frames = [{ id: 1, name: "inner", file: "/a.jl", line: 3 }, { id: 2, name: "outer", file: "/a.jl", line: 20 }];
-  it("is the selected frame while stopped", () => {
-    expect(currentLocation({ status: "stopped", frames, frameId: 2 })).toEqual({ file: "/a.jl", line: 20, frameId: 2 });
-    expect(currentLocation({ status: "stopped", frames, frameId: undefined }).line).toBe(3);
-  });
-  it("is nothing otherwise, or when the frame has no usable source", () => {
-    expect(currentLocation(null)).toBe(null);
-    expect(currentLocation({ status: "running", frames, frameId: 1 })).toBe(null);
-    expect(currentLocation({ status: "stopped", frames: [{ id: 1, name: "f", line: 3 }], frameId: 1 })).toBe(null);
-    expect(currentLocation({ status: "stopped", frames: [], frameId: 1 })).toBe(null);
   });
 });

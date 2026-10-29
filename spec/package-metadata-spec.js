@@ -3,7 +3,7 @@
 // message instead of aborting the whole run.
 const fs = require("fs");
 const path = require("path");
-const { DebugController } = require("../lib/debug/controller");
+const { createDebugAdapterProvider } = require("../lib/debug/provider");
 
 const root = path.join(__dirname, "..");
 const readJson = (...parts) => {
@@ -13,12 +13,11 @@ const readJson = (...parts) => {
 };
 
 describe("package metadata", () => {
-  it("lists every debugger command in activationCommands", () => {
-    const activation = readJson("package.json").activationCommands["atom-workspace"];
-    const controller = new DebugController({ setting: () => undefined, notifications: {}, ui: {} });
-    for (const name of Object.keys(controller.commandTable())) expect(activation).toContain(`pulsar-ide-julia:${name}`);
-    controller.unsubscribeStore();
-    controller.unsubscribeLog();
+  it("provides the debug-adapter service, and leaves the debugger's commands to pulsar-ide-debugger", () => {
+    const pkg = readJson("package.json");
+    expect(pkg.providedServices["debug-adapter"].versions["0.1.0"]).toBe("provideDebugAdapter");
+    const activation = pkg.activationCommands["atom-workspace"];
+    expect(activation.filter((c) => /:(debug-|toggle-breakpoint|clear-breakpoints|open-workspace)/.test(c))).toEqual([]);
   });
 
   it("only binds keys to commands that are activation commands", () => {
@@ -60,9 +59,14 @@ describe("package metadata", () => {
     for (const name of Object.keys(new TestController({}).commandTable())) expect(activation).toContain(`pulsar-ide-julia:${name}`);
   });
 
-  it("declares a default for every debugger setting the controller reads", () => {
+  it("declares a default for every setting the debug adapter provider reads", () => {
     const schema = readJson("package.json").configSchema;
-    const read = ["debugger.juliaPath", "debugger.environment", "debugger.threads", "debugger.flags", "debugger.stopOnEntry", "debugger.launchArgumentsJson", "debugger.exceptionFilters", "debugger.openWorkspace", "debugger.openOutput", "debugger.programArguments", "debugger.compiledMode", "debugger.compiledModules", "repl.workspace"];
-    for (const key of read) expect(schemaAt(schema, key) && "default" in schemaAt(schema, key)).toBe(true);
+    const read = new Set();
+    const provider = createDebugAdapterProvider({ setting: (key) => { read.add(key); return undefined; } });
+    provider.launchRequest({ file: "/work/a.jl" });
+    provider.exceptionFilters();
+    provider.explainFailure({ message: "x" });
+    expect(read.size).toBeGreaterThan(5);
+    for (const key of [...read, "repl.workspace"]) expect(schemaAt(schema, key) && "default" in schemaAt(schema, key) ? key : `${key} has no default`).toBe(key);
   });
 });

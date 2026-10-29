@@ -43,7 +43,7 @@ community `symbols-view-redux` package was the prototype of today's built-in `sy
 ## Settings and JETLS configuration
 
 The settings come in five groups: **Language server (JETLS)**, **Outline and Go to Symbol**, **REPL**, **Tests** and
-**Debugger**. Settings saved
+**Debugger** (the Julia side of debugging; see below). Settings saved
 by earlier versions under the old, ungrouped names are moved into their groups the first time the package starts.
 
 Configuration reaches JETLS three ways (highest priority first):
@@ -213,52 +213,44 @@ use the REPL commands. To bind keys, add for example to your `keymap.cson`:
 
 (`alt-enter`, the `intentions` package's key, is this package's **Send Cell** in Julia files.)
 
-## Debugger and workspace pane
+## Debugger and Workspace pane
 
-**Experimental, and not yet tested against a real DebugAdapter.jl or Pulsar** (see "What to check first" below).
+**Experimental, and not yet tested against a real DebugAdapter.jl** (see "What to check first" below).
 
-The debugger talks the Debug Adapter Protocol to [DebugAdapter.jl](https://github.com/julia-vscode/DebugAdapter.jl).
-Install it once in the default global environment (the adapter is found through Julia's normal `LOAD_PATH`; your
-program still runs in its own project):
+Breakpoints, stepping, the current-line marker and the **Workspace** and **Debug Output** panes come from the
+[`pulsar-ide-debugger`](https://github.com/mjrodgers/pulsar-ide-debugger) package, which this package supplies with
+Julia's debugger through the `debug-adapter` service. Install both:
+
+```
+ppm install pulsar-ide-debugger
+```
+
+and install [DebugAdapter.jl](https://github.com/julia-vscode/DebugAdapter.jl) once in the default global environment
+(the adapter is found through Julia's normal `LOAD_PATH`; your program still runs in its own project):
 
 ```
 julia -e 'using Pkg; Pkg.add("DebugAdapter")'
 ```
 
-| Command | Default key (Julia files) | |
-| --- | --- | --- |
-| `pulsar-ide-julia:debug-start-or-continue` | `F5` | Debug the current file, or continue when stopped |
-| `pulsar-ide-julia:debug-file` | `Ctrl+F5` | Debug the current file |
-| `pulsar-ide-julia:toggle-breakpoint` | `F9` | Breakpoint on the cursor line (or click the gutter dot column) |
-| `pulsar-ide-julia:debug-step-over` / `-in` / `-out` | `F10` / `F11` / `Shift+F11` | Also work with the workspace pane focused |
-| `pulsar-ide-julia:debug-stop` | `Shift+F5` | Stop the program and the adapter |
-| `pulsar-ide-julia:clear-breakpoints` | | Remove all breakpoints |
-| `pulsar-ide-julia:open-workspace` | | Open the workspace pane |
-| `pulsar-ide-julia:show-debug-output` | | Open what the program and the adapter print |
+In a Julia file: `F9` toggles a breakpoint (or click the gutter left of the line numbers), `Ctrl+F5` debugs the file,
+`F5` starts or continues, `F10` / `F11` / `Shift+F11` step over / in / out and `Shift+F5` stops. The commands are
+`pulsar-ide-debugger:*`; see that package's README for the panes. On some systems `F11` is bound to full screen by
+default; the binding only applies in editors the debugger can handle and in its panes, and you can rebind it.
 
-On some systems `F11` is bound to full screen by default; the package's binding only applies in Julia editors and in
-the workspace pane, and you can rebind it in your keymap.
-
-The **Julia Workspace** pane shows the scopes and variables of the selected stack frame. Expand a variable to see
-its fields or elements (what stays expanded survives stepping, so you can watch `v` change), filter by name with
-the box at the top (matching is fuzzy, e.g. `xs` finds `xValues`), and choose another frame in the drop-down; the
-current-line marker follows it. Scopes the adapter marks as expensive (usually globals) load when you click
-"Load variables". Values are dimmed while the program is running.
-
-The **Debugger** settings choose the Julia executable, environment, threads and flags, whether to stop on
-entry, the script's arguments, compiled mode and which modules to run compiled, which exception filters to enable
-(default `error`: stop on uncaught exceptions; `throw` stops on every exception; empty never stops),
-and let you merge extra JSON into the `launch` request. The request follows DebugAdapter.jl's
+This package starts Julia for the debugger (after Pulsar has loaded your shell's `PATH`, so `julia` is found as in a
+terminal) and builds the `launch` request from the **Debugger** settings: the Julia executable, environment, threads
+and flags, whether to stop on entry, the script's arguments, compiled mode and which modules to run compiled, which
+exception filters to enable (default `error`: stop on uncaught exceptions; `throw` stops on every exception; empty
+never stops), and extra JSON to merge into the `launch` request. The request follows DebugAdapter.jl's
 `JuliaLaunchArguments` (`program`, `stopOnEntry`, `cwd`, `env`, `project`, `args`, `code`, `compiledMode`,
 `compiledModulesOrFunctions`, `noDebug`); only `program` and `stopOnEntry` are always sent, the rest only when set.
+Whether the panes open by themselves is a `pulsar-ide-debugger` setting now (values set here are moved over).
 
 ### What to check first
 
-* Nothing has run against the real adapter yet. If starting fails, the output pane shows what Julia printed.
+* Nothing has run against the real adapter yet. If starting fails, the Debug Output pane shows what Julia printed.
   If the adapter rejects the launch request, **Debugger → Extra launch arguments (JSON)** can add or override fields
   (a `null` value removes one).
-* The breakpoint gutter needs a width of its own to be clickable before the first breakpoint exists; the stylesheet
-  gives it one, but if clicks do nothing, use `F9`.
 * Breakpoints set while the program is running depend on what the adapter allows; the session is only told, not
   guaranteed.
 
@@ -283,12 +275,13 @@ does not matter which terminal tab was used last (the terminal package types int
 
 The first send after opening a REPL waits until Julia has started and the helper has connected (up to 20 seconds; after
 that, or if the helper cannot load, code is typed in as before). When that REPL exits, the next send starts a new one. If the REPL does not answer a send in time, you get a warning and the code runs when the REPL is free. Turn it off with **REPL → Run sent code in its module**.
-This is separate from the workspace pane's module menu, which only chooses what the pane lists. "Send file" still runs
+This is separate from the Workspace pane's module menu, which only chooses what the pane lists. "Send file" still runs
 `include(file)` in `Main`.
 
 ### Variables of the REPL
 
-The same pane also follows the Julia REPL started with `pulsar-ide-julia:open-repl`. Pulsar's terminal cannot be read
+When nothing is being debugged, the Workspace pane (from `pulsar-ide-debugger`) follows the Julia REPL started with
+`pulsar-ide-julia:open-repl`. Pulsar's terminal cannot be read
 from, so the REPL is started with `julia -L <file>`: a small startup file that loads `julia/workspace.jl` from this
 package, which connects back to Pulsar over a local socket (a Unix socket or Windows named pipe) and answers
 read-only questions about the variables in `Main`: the names, a one-line summary of each value, its type, and the

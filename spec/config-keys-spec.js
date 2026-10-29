@@ -47,3 +47,25 @@ describe("migrateSettings", () => {
     for (const t of targets) expect(t).toMatch(/^(server|outline|repl|debugger)\.\w+$/);
   });
 });
+
+describe("settings that moved to pulsar-ide-debugger", () => {
+  it("moves the pane settings, under their old and their grouped names", () => {
+    const config = fakeConfig({
+      "pulsar-ide-julia.debugOpenWorkspace": false,
+      "pulsar-ide-julia.debugger.openOutput": false,
+      "pulsar-ide-julia.debugger.stopOnEntry": true,
+    });
+    const moved = migrateSettings(config, "pulsar-ide-julia");
+    expect(moved.sort()).toEqual(["debugOpenWorkspace", "debugger.openOutput"]);
+    expect(Object.fromEntries(config.values)).toEqual({
+      "pulsar-ide-debugger.openWorkspace": false,
+      "pulsar-ide-debugger.openOutput": false,
+      "pulsar-ide-julia.debugger.stopOnEntry": true,
+    });
+  });
+
+  it("only moves into pulsar-ide-debugger", () => {
+    const { MOVED_OUT } = require("../lib/config-keys");
+    for (const t of Object.values(MOVED_OUT)) expect(t).toMatch(/^pulsar-ide-debugger\.\w+$/);
+  });
+});

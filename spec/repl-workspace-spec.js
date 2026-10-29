@@ -4,13 +4,11 @@ const os = require("os");
 const path = require("path");
 const { EventEmitter } = require("events");
 const { startFakeHelper, FakeHelper } = require("./helpers/fake-repl-helper");
-const { fakeDocument } = require("./helpers/fake-dom");
 const { ReplWorkspaceSource } = require("../lib/workspace/repl-source");
 const { ReplBridge, bootstrapSource } = require("../lib/workspace/repl-bridge");
-const { WorkspaceModel, pathOf } = require("../lib/workspace/model");
 const { FOLLOW } = require("../lib/workspace/module-follow");
-const { WorkspacePane } = require("../lib/workspace/pane");
-const { DebugController } = require("../lib/debug/controller");
+const { ModuleChooser } = require("../lib/workspace/module-chooser");
+const { createDebugAdapterProvider } = require("../lib/debug/provider");
 
 const until = async (predicate, what = "condition", ms = 3000) => {
   const t0 = Date.now();
@@ -174,175 +172,152 @@ describe("ReplWorkspaceSource (against a fake helper)", () => {
   });
 });
 
-describe("WorkspaceModel following a REPL", () => {
-  let server, source, model, pane;
+// What the Workspace pane (in pulsar-ide-debugger) shows for a REPL comes from the source's state.
+describe("ReplWorkspaceSource state for the Workspace pane", () => {
+  let server, source;
 
   beforeEach(async () => {
     server = await startFakeHelper();
     source = new ReplWorkspaceSource(await server.connect(), { refreshDelay: 10 });
-    model = new WorkspaceModel();
-    pane = new WorkspacePane(model, { document: fakeDocument() });
-    model.setSession(source);
     await until(() => source.state.contexts.length === 1);
   });
   afterEach(async () => {
-    pane.destroy();
-    model.destroy();
     source.close();
     await server.close();
   });
 
-  const variableNames = () => model.rows().filter((r) => r.kind === "variable").map((r) => r.name);
+  const variableNames = () => source.state.contexts[0].items.map((i) => i.name);
+
+  it("is one live scope, the module, with no frames", () => {
+    expect(source.state.status).toBe("live");
+    expect(source.state.contexts[0].name).toBe("Main");
+    expect(variableNames()).toEqual(["x", "v", "C", "Foo", "f", "Base"]);
+    expect(source.state.frames).toEqual([]);
+  });
 
   it("says when the REPL is running or the module could not be read", async () => {
-    expect(model.stale).toBe(false);
+    expect(source.state.busy).toBe(false);
     server.helper.busyEvent();
-    await until(() => model.stale, "stale while running");
-    expect(model.statusText()).toBe("REPL: Main (running; values as they were before)");
-    expect(variableNames()).toContain("x");
+    await until(() => source.state.busy, "busy while running");
+    expect(variableNames()).toContain("x"); // the rows from before stay
     server.helper.changed();
-    await until(() => !model.stale, "fresh again");
-    expect(model.statusText()).toBe("REPL: Main");
+    await until(() => !source.state.busy, "free again");
     server.helper.failLs = "UndefVarError: `Gone` not defined";
-    await model.refresh();
-    expect(model.statusText()).toMatch(/^REPL: Main \(could not read it: UndefVarError/);
-    expect(model.stale).toBe(false);
+    await source.refresh();
+    expect(source.state.problem).toMatch(/UndefVarError/);
+    expect(source.state.busy).toBe(false);
   });
 
-  it("shows the module as one scope, not stale", () => {
-    expect(model.statusText()).toBe("REPL: Main");
-    expect(model.stale).toBe(false);
-    expect(model.rows()[0].kind).toBe("context");
-    expect(model.rows()[0].name).toBe("Main");
-    expect(variableNames()).toEqual(["x", "v", "C", "Foo", "f", "Base"]);
-    expect(model.frames()).toEqual([]);
-  });
-
-  it("expands values and keeps them expanded when the REPL changes", async () => {
-    await model.toggle(pathOf("Main", "v"));
-    await until(() => variableNames().length === 9, "children");
-    expect(model.rows().filter((r) => r.depth === 2).map((r) => r.value)).toEqual(["1", "2", "3"]);
-
-    server.helper.generation = 1;
-    server.helper.changed();
-    await until(() => model.rows().find((r) => r.name === "x").value === "43", "new listing");
-    await until(() => model.rows().filter((r) => r.depth === 2).map((r) => r.value).join() === "2,4,6", "children refreshed");
-    expect(variableNames().length).toBe(9);
-  });
-
-  it("offers a refresh button that reads the module again", async () => {
-    expect(model.canRefresh).toBe(true);
-    const button = pane.element.querySelector("button.refresh");
-    expect(button.classList.contains("hidden")).toBe(false);
+  it("offers a refresh that reads the module again", async () => {
+    expect(typeof source.refresh).toBe("function");
     const before = server.helper.count("ls");
-    button.click();
+    await source.refresh();
     await until(() => server.helper.count("ls") === before + 1, "second ls");
-  });
-
-  it("has no refresh button for a debug session", () => {
-    const fake = Object.assign(new EventEmitter(), { state: { status: "running", loading: false, frames: [], contexts: [] } });
-    model.setSession(fake);
-    expect(model.canRefresh).toBe(false);
-    pane.render();
-    expect(pane.element.querySelector("button.refresh").classList.contains("hidden")).toBe(true);
   });
 });
 
-describe("choosing the module of a REPL", () => {
-  let server, source, model, pane, chosen;
+describe("ModuleChooser: choosing the module of a REPL", () => {
+  let server, source, chooser, chosen;
   const ls = () => server.helper.requests.filter((r) => r.op === "ls").map((r) => r.arg);
+  const shown = () => source.state.contexts[0] && source.state.contexts[0].name;
 
   beforeEach(async () => {
     server = await startFakeHelper();
     source = new ReplWorkspaceSource(await server.connect(), { refreshDelay: 10 });
-    model = new WorkspaceModel();
+    chooser = new ModuleChooser();
     chosen = [];
-    model.onDidChooseModule((c) => chosen.push(c));
-    pane = new WorkspacePane(model, { document: fakeDocument() });
-    model.setSession(source);
+    chooser.onDidChooseModule((c) => chosen.push(c));
+    chooser.attach(source);
     await until(() => source.state.contexts.length === 1);
-    await until(() => model.moduleNames.length > 0, "module names");
   });
   afterEach(async () => {
-    pane.destroy();
-    model.destroy();
     source.close();
     await server.close();
   });
 
-  it("offers the modules and Follow editor in the pane", async () => {
-    pane.render();
-    const select = pane.element.querySelector("select.modules");
-    expect(select.classList.contains("hidden")).toBe(false);
-    expect(select.children.map((o) => o.textContent)).toEqual(["Follow editor", "Main", "Main.Base", "Main.Foo", "Main.Foo.Bar"]);
-    expect(select.value).toBe("Main");
+  it("gives the source the pane's menu: Follow editor and the modules", async () => {
+    expect(source.choice).toBe("Main");
+    expect(await source.choices()).toEqual([
+      { value: FOLLOW, label: "Follow editor" },
+      { value: "Main", label: "Main" },
+      { value: "Main.Base", label: "Main.Base" },
+      { value: "Main.Foo", label: "Main.Foo" },
+      { value: "Main.Foo.Bar", label: "Main.Foo.Bar" },
+    ]);
   });
 
-  it("switches the listing when a module is chosen, and announces the choice", async () => {
-    pane.render();
-    const select = pane.element.querySelector("select.modules");
-    select.value = "Main.Foo";
-    select.dispatch("change");
-    await until(() => model.statusText() === "REPL: Main.Foo", "new module");
+  it("switches the listing when a module is chosen in the pane, and announces the choice", async () => {
+    source.choose("Main.Foo");
+    await until(() => shown() === "Main.Foo", "new module");
     expect(ls()).toEqual(["Main", "Main.Foo"]);
     expect(chosen).toEqual(["Main.Foo"]);
+    expect(source.choice).toBe("Main.Foo");
   });
 
   it("restoring a saved choice switches the module without announcing it", async () => {
-    model.setModuleChoice("Main.Foo.Bar");
-    await until(() => model.statusText() === "REPL: Main.Foo.Bar", "restored module");
+    chooser.setChoice("Main.Foo.Bar");
+    await until(() => shown() === "Main.Foo.Bar", "restored module");
     expect(chosen).toEqual([]);
   });
 
   it("applies the saved choice when a REPL connects", async () => {
-    const other = new WorkspaceModel();
-    other.setModuleChoice("Main.Foo");
+    const other = new ModuleChooser({ choice: "Main.Foo" });
     const second = new ReplWorkspaceSource(await server.connect(), { refreshDelay: 10 });
-    other.setSession(second);
-    await until(() => other.statusText() === "REPL: Main.Foo", "module on connect");
-    other.destroy();
+    other.attach(second);
+    await until(() => second.state.contexts[0] && second.state.contexts[0].name === "Main.Foo", "module on connect");
     second.close();
   });
 
-  it("keeps a chosen module in the menu even if the REPL does not list it", () => {
-    model.setModuleChoice("Main.NotYet");
-    pane.render();
-    const select = pane.element.querySelector("select.modules");
-    expect(select.children.map((o) => o.textContent)).toContain("Main.NotYet");
+  it("keeps a chosen module in the menu even if the REPL does not list it", async () => {
+    chooser.setChoice("Main.NotYet");
+    expect((await source.choices()).map((c) => c.value)).toContain("Main.NotYet");
+  });
+
+  it("tells the pane to redraw when the choice changes", () => {
+    let states = 0;
+    source.on("state", () => states++);
+    chooser.setChoice(FOLLOW);
+    expect(states).toBeGreaterThan(0);
+    expect(source.choice).toBe(FOLLOW);
   });
 
   it("follows the editor to the deepest module that exists", async () => {
-    model.chooseModule(FOLLOW);
-    expect(model.following).toBe(true);
-    await model.followTo(["Foo", "Bar", "Deeper"]);
-    await until(() => model.statusText() === "REPL: Main.Foo.Bar", "followed");
-    await model.followTo([]);
-    await until(() => model.statusText() === "REPL: Main", "back at Main");
+    source.choose(FOLLOW);
+    expect(chooser.following).toBe(true);
+    await chooser.followTo(["Foo", "Bar", "Deeper"]);
+    await until(() => shown() === "Main.Foo.Bar", "followed");
+    await chooser.followTo([]);
+    await until(() => shown() === "Main", "back at Main");
   });
 
   it("asks the REPL for its modules again when the editor's module is unknown", async () => {
-    model.chooseModule(FOLLOW);
+    chooser.choose(FOLLOW);
     const before = server.helper.count("modules");
     server.helper.moduleNames = ["Main", "Main.Fresh"];
-    await model.followTo(["Fresh"]);
+    await chooser.followTo(["Fresh"]);
     expect(server.helper.count("modules")).toBeGreaterThan(before);
-    await until(() => model.statusText() === "REPL: Main.Fresh", "fresh module");
+    await until(() => shown() === "Main.Fresh", "fresh module");
   });
 
   it("does not follow when a fixed module is chosen", async () => {
-    model.chooseModule("Main.Foo");
-    expect(model.following).toBe(false);
-    await model.followTo(["Foo", "Bar"]);
-    await until(() => model.statusText() === "REPL: Main.Foo", "fixed module");
+    chooser.choose("Main.Foo");
+    expect(chooser.following).toBe(false);
+    await chooser.followTo(["Foo", "Bar"]);
+    await until(() => shown() === "Main.Foo", "fixed module");
     expect(ls().filter((a) => a === "Main.Foo.Bar").length).toBe(0);
   });
 
-  it("is hidden for a debug session", () => {
+  it("leaves a source that cannot switch modules alone", () => {
     const fake = Object.assign(new EventEmitter(), { state: { status: "running", loading: false, frames: [], contexts: [] } });
-    model.setSession(fake);
-    expect(model.canChooseModule).toBe(false);
-    pane.render();
-    expect(pane.element.querySelector("select.modules").classList.contains("hidden")).toBe(true);
+    const other = new ModuleChooser();
+    other.attach(fake);
+    expect(fake.choices).toBeUndefined();
+    expect(other.following).toBe(false);
+  });
+
+  it("forgets a source once it is detached", () => {
+    chooser.detach(source);
+    expect(chooser.canChoose).toBe(false);
   });
 });
 
@@ -556,37 +531,55 @@ describe("ReplBridge", () => {
   });
 });
 
-describe("DebugController and the REPL source", () => {
-  const fakeSource = (name) => Object.assign(new EventEmitter(), { name, state: { status: "live", loading: false, frames: [], contexts: [{ name, ref: 0, lazy: false, items: [] }] } });
-  let controller;
-
-  beforeEach(() => {
-    controller = new DebugController({ setting: () => undefined, notifications: {}, ui: { showLocation() {}, openWorkspace() {}, openOutput() {} } });
-  });
-  afterEach(() => { controller.destroy(); });
-
-  it("shows the REPL in the pane when nothing is being debugged", () => {
-    const repl = fakeSource("Main");
-    controller.setReplSource(repl);
-    expect(controller.model.session).toBe(repl);
-    controller.setReplSource(null);
-    expect(controller.model.session).toBe(null);
-  });
-
-  it("does not take the pane away from a running debug session", () => {
-    const debugSession = Object.assign(new EventEmitter(), { state: { status: "stopped", loading: false, frames: [], contexts: [] } });
-    controller.attach(debugSession, null);
-    controller.setReplSource(fakeSource("Main"));
-    expect(controller.model.session).toBe(debugSession);
+describe("the debug adapter provider's workspace source", () => {
+  // A ReplBridge as the provider sees it.
+  const fakeBridge = () => {
+    const bridge = new EventEmitter();
+    bridge.source = null;
+    bridge.onDidConnect = (fn) => { bridge.on("connect", fn); return { dispose: () => bridge.removeListener("connect", fn) }; };
+    bridge.onDidDisconnect = (fn) => { bridge.on("disconnect", fn); return { dispose: () => bridge.removeListener("disconnect", fn) }; };
+    bridge.connect = (source) => { bridge.source = source; bridge.emit("connect", source); };
+    bridge.disconnect = () => { bridge.source = null; bridge.emit("disconnect"); };
+    return bridge;
+  };
+  const replSource = () => Object.assign(new EventEmitter(), {
+    module: "Main",
+    state: { status: "live", loading: false, frames: [], contexts: [] },
+    modules: async () => ["Main", "Main.Foo"],
+    setModule(m) { this.module = m; return Promise.resolve(); },
   });
 
-  it("goes back to the REPL when the debug session ends", () => {
-    const repl = fakeSource("Main");
-    controller.setReplSource(repl);
-    const debugSession = Object.assign(new EventEmitter(), { state: { status: "stopped", loading: false, frames: [], contexts: [] } });
-    controller.attach(debugSession, null);
-    expect(controller.model.session).toBe(debugSession);
-    debugSession.emit("ended");
-    expect(controller.model.session).toBe(repl);
+  it("offers the REPL when it connects and withdraws it when it goes away", () => {
+    const bridge = fakeBridge();
+    const provider = createDebugAdapterProvider({ setting: () => undefined, replBridge: bridge, chooser: new ModuleChooser() });
+    const seen = [];
+    const sub = provider.observeWorkspaceSource((s) => seen.push(s));
+    const repl = replSource();
+    bridge.connect(repl);
+    bridge.disconnect();
+    expect(seen).toEqual([repl, null]);
+    sub.dispose();
+    bridge.connect(replSource());
+    expect(seen.length).toBe(2);
+  });
+
+  it("offers a REPL that is already connected, with the module menu", async () => {
+    const bridge = fakeBridge();
+    const repl = replSource();
+    bridge.source = repl;
+    const provider = createDebugAdapterProvider({ setting: () => undefined, replBridge: bridge, chooser: new ModuleChooser({ choice: "Main.Foo" }) });
+    const seen = [];
+    provider.observeWorkspaceSource((s) => seen.push(s));
+    expect(seen).toEqual([repl]);
+    expect(repl.choice).toBe("Main.Foo");
+    expect(repl.module).toBe("Main.Foo");
+    expect((await repl.choices()).map((c) => c.label)).toEqual(["Follow editor", "Main", "Main.Foo"]);
+  });
+
+  it("offers nothing without a REPL bridge", () => {
+    const provider = createDebugAdapterProvider({ setting: () => undefined });
+    const seen = [];
+    provider.observeWorkspaceSource((s) => seen.push(s)).dispose();
+    expect(seen).toEqual([]);
   });
 });
