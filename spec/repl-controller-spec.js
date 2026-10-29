@@ -84,6 +84,71 @@ describe("ReplController and the workspace bridge", () => {
   });
 });
 
+describe("ReplController: Run All Above / Below and Restart REPL", () => {
+  it("sends everything above the cursor's line, or from it to the end", async () => {
+    const editor = fakeEditor({ text: "a = 1\nb = 2\nc = 3\n\n", cursor: [2, 3] });
+    const { repl, log } = setup({ editor });
+    await repl.sendAllAbove();
+    expect(log.runs[1]).toEqual(["a = 1", "b = 2"]);
+    editor.cursor = { row: 1, column: 0 };
+    await repl.sendAllBelow();
+    expect(log.runs[2]).toEqual(["b = 2", "c = 3"]);
+    editor.cursor = { row: 0, column: 0 };
+    await repl.sendAllAbove();
+    expect(log.runs.length).toBe(3);
+    expect(log.notes[0][1]).toMatch(/nothing above/);
+  });
+
+  const editor = fakeEditor({ text: "x = 1", filePath: null });
+
+  it("starts a REPL when there is none", async () => {
+    const { repl, log } = setup({ editor });
+    expect(await repl.restartRepl()).toBe(true);
+    expect(log.open).toBe(1);
+    expect(log.runs).toEqual([["julia"]]);
+  });
+
+  it("types exit() and the command again without the helper", async () => {
+    const { repl, log } = setup({ editor });
+    await repl.openRepl(editor);
+    expect(await repl.restartRepl()).toBe(true);
+    expect(log.open).toBe(1); // the same terminal
+    expect(log.runs[1]).toEqual(["exit()", "julia"]);
+  });
+
+  it("asks the helper to exit, and starts the new REPL once the old one is gone", async () => {
+    const disconnected = new Set();
+    const sent = [];
+    const bridge = {
+      source: {},
+      prepare: async () => ({ loadFile: "/tmp/ws.jl" }),
+      onDidDisconnect: (fn) => { disconnected.add(fn); return { dispose: () => disconnected.delete(fn) }; },
+      evalCode: async (req) => { sent.push(req.code); setImmediate(() => [...disconnected].forEach((fn) => fn())); },
+    };
+    const { repl, log } = setup({ editor, bridge });
+    await repl.openRepl(editor);
+    repl.started = true; // (the disconnect above set it to false, as for a REPL that exits by itself)
+    expect(await repl.restartRepl()).toBe(true);
+    expect(sent).toEqual(["exit()"]);
+    expect(log.runs[1]).toEqual(["julia -L /tmp/ws.jl"]);
+    expect(repl.started).toBe(true);
+  });
+
+  it("gives up when the old REPL does not exit", async () => {
+    const bridge = {
+      source: {},
+      prepare: async () => ({ loadFile: "/tmp/ws.jl" }),
+      onDidDisconnect: () => ({ dispose() {} }),
+      evalCode: async () => {},
+    };
+    const { repl, log } = setup({ editor, bridge, deps: { restartTimeout: 20 } });
+    await repl.openRepl(editor);
+    expect(await repl.restartRepl()).toBe(false);
+    expect(log.runs.length).toBe(1);
+    expect(log.notes[0][0]).toBe("addWarning");
+  });
+});
+
 describe("ReplController: Interrupt REPL", () => {
   const editor = fakeEditor({ text: "x = 1", filePath: null });
 

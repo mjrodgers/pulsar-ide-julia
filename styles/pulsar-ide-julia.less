@@ -1,4 +1,5 @@
 @import "ui-variables";
+@import "syntax-variables";
 
 // Brief flash over code that was just sent to the REPL.
 atom-text-editor .highlight.pulsar-ide-julia-sent .region {
@@ -106,4 +107,9 @@ atom-text-editor .pulsar-ide-julia-result {
     background-color: fade(@background-color-error, 10%);
     .result-icon, .result-text { color: @text-color-error; }
   }
+}
+
+// --- Cell separators (REPL → Cell separators) --------------------------------------------------
+atom-text-editor .line.pulsar-ide-julia-cell-separator {
+  box-shadow: inset 0 1px 0 fade(@syntax-text-color, 22%);
 }

@@ -140,6 +140,8 @@ not inline in the editor.
 | Send Selection Or Definition And Advance | `shift-enter` | The same, then the cursor moves to the next line of code (blank lines and comments are skipped) |
 | Send Cell / Send Cell And Advance | `alt-enter` / `alt-shift-enter` | The cell between `##`, `#---` or `# %%` markers |
 | Send File | `ctrl-shift-enter` | `include("file")` (saves first) |
+| Send All Above / Send All Below | – | Everything above the cursor's line, or from it to the end of the file. Best at the top level of a file (part of a `module … end` block cannot run on its own) |
+| Restart REPL | – | Ends the REPL and starts a new one in the same terminal (with the helper, once the old one has exited) |
 | Clear Results | – | Removes the inline results from the file (see Inline results) |
 | Interrupt REPL | – | Stops what the REPL is running, like `Ctrl-C` in its terminal. `Ctrl-C` does not reach code sent from Pulsar (it runs alongside the prompt), this does. Needs the workspace helper |
 | Activate Environment | – | `Pkg.activate` on the file's project (nearest `Project.toml`) |
@@ -148,7 +150,7 @@ not inline in the editor.
 | Select Environment | – | A list of the shared environments in `<depot>/environments` (the first `JULIA_DEPOT_PATH` entry, else `~/.julia`); activates the one you pick |
 | Work In Current Folder / Project Folder / Home Folder | – | `cd(...)` to the file's folder, Pulsar's project folder for the file, or `cd()` |
 | Select Working Folder | – | Choose a folder in the system dialog and `cd` into it |
-| Previous / Next Cell | `alt-up` / `alt-down` | Move between cell markers |
+| Previous / Next Cell | `alt-up` / `alt-down` | Move between cell markers. A thin line is drawn above each marker (turn it off with **REPL → Cell separators**) |
 
 Settings (the **REPL** group): Julia executable, environment, threads, extra arguments (added as written, e.g.
 `-e 'using Revise'`; `-i` is added for you), the workspace helper, and how code is typed when it is typed.

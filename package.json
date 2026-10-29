@@ -28,6 +28,9 @@
       "pulsar-ide-julia:send-cell",
       "pulsar-ide-julia:send-cell-and-advance",
       "pulsar-ide-julia:send-file",
+      "pulsar-ide-julia:send-all-above",
+      "pulsar-ide-julia:send-all-below",
+      "pulsar-ide-julia:restart-repl",
       "pulsar-ide-julia:interrupt-repl",
       "pulsar-ide-julia:clear-results",
       "pulsar-ide-julia:send-selection-or-definition-and-advance",
@@ -246,12 +249,19 @@
           "description": "Show the result of sent code under it in the editor: the value (click it to see all of it), plots and images, errors with their line, and how long it took. The terminal shows the output as before. Needs the helper and **Run sent code in its module**.",
           "order": 7
         },
+        "cellSeparators": {
+          "title": "Cell separators",
+          "type": "boolean",
+          "default": true,
+          "description": "Draw a line above each cell marker (`##`, `#---`, `# %%`) in Julia files.",
+          "order": 8
+        },
         "workspaceModule": {
           "title": "Workspace module",
           "type": "string",
           "default": "Main",
           "description": "The module the workspace pane lists, e.g. `Main.MyPackage`, or `@follow` for the one at the cursor. Set from the pane's menu.",
-          "order": 8
+          "order": 9
         },
         "sendVia": {
           "title": "Typing code into the terminal",
@@ -268,14 +278,14 @@
               "description": "Terminal's run-selected-text command"
             }
           ],
-          "order": 9
+          "order": 10
         },
         "bracketedPaste": {
           "title": "Bracketed paste",
           "type": "boolean",
           "default": false,
           "description": "Type multi-line code as a single paste. Try this if typed blocks misbehave.",
-          "order": 10
+          "order": 11
         }
       }
     },
