@@ -90,6 +90,10 @@ reflect, your local checkouts of dependencies, `Pkg.develop` them into that envi
 
 Needs Julia 1.12+ (1.12.2+ recommended). This package also looks in `~/.julia/bin` itself, so `PATH` need not be set.
 
+A Pulsar started from the Dock or a desktop launcher reads your shell's environment (`PATH` included) in the background
+after its window opens. Opening a Julia file can start JETLS before that, so the package first waits for it (at most 10
+seconds, once per window), and the server and the debugger find `julia` (juliaup, Homebrew) as a terminal would.
+
 ## Running this package's specs
 
 `package.json` sets `"atomTestRunner": "runners/jasmine2-test-runner"`, which selects the Jasmine 2
