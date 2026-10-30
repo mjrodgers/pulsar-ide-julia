@@ -30,6 +30,12 @@ describe("atom-languageclient fork API", () => {
     it(`AutoLanguageClient has ${name}()`, () => expect(typeof client[name]).toBe("function"));
   }
 
+  // lib/server/shutdown.js turns this off while the window closes, so quitting does not wait for JETLS.
+  it("stops servers through a ServerManager whose graceful shutdown can be turned off", () => {
+    expect(typeof client._serverManager.shutdownGracefully).toBe("boolean");
+    expect(typeof client._serverManager.stopServer).toBe("function");
+  });
+
   it("advertises workspace/configuration support in initialize params", () => {
     const params = client.getInitializeParams(fixtures, { pid: 1 });
     expect(params.capabilities.workspace.configuration).toBe(true);
