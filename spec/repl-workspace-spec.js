@@ -146,7 +146,8 @@ describe("ReplWorkspaceSource (against a fake helper)", () => {
     source.on("state", (s) => { if (s.busy) busy++; });
     server.helper.busyEvent();
     server.helper.send({ event: "changed", ms: 2 });
-    await new Promise((r) => setTimeout(r, 80));
+    // Node's own timer: Pulsar's spec runner replaces the window's setTimeout with a clock that does not move by itself.
+    await new Promise((r) => require("timers").setTimeout(r, 80));
     expect(busy).toBe(0);
     server.helper.busyEvent();
     await until(() => source.state.busy, "busy after the delay");
