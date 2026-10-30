@@ -236,7 +236,10 @@ end
     # a worker survives errors in a job and interrupts while it waits, and stops when its queue is closed
     done = Int[]
     queue = Channel{Int}(10)
-    t = @async W.worker(n -> (n == 2 && error("job 2 fails"); push!(done, n)), queue, "test")
+    # (the failing job's warning is expected: kept out of the test output)
+    t = Base.CoreLogging.with_logger(Base.CoreLogging.NullLogger()) do
+        @async W.worker(n -> (n == 2 && error("job 2 fails"); push!(done, n)), queue, "test")
+    end
     yield()
     schedule(t, InterruptException(); error = true)   # arrives while it waits for a job
     yield()
@@ -409,8 +412,9 @@ end
         write(joinpath(evaldir, "7.jl"), "Main.TestOuter\n/w/a.jl\n5\n\npulsar_socket_probe = @__LINE__")
         println(conn, "33\teval\t7")
         @test occursin("\"id\":33,\"ok\":true", answer(conn))
-        @test timedwait(() -> isdefined(Main.TestOuter, :pulsar_socket_probe), 10.0) == :ok
-        @test Main.TestOuter.pulsar_socket_probe == 5
+        # (invokelatest: on Julia 1.12+ this code does not see globals created after it started)
+        @test timedwait(() -> Base.invokelatest(isdefined, Main.TestOuter, :pulsar_socket_probe), 10.0) == :ok
+        @test Base.invokelatest(getglobal, Main.TestOuter, :pulsar_socket_probe) == 5
         println(conn, "34\teval\tnope")
         @test occursin("\"ok\":false", answer(conn))
 
