@@ -38,9 +38,16 @@ function fakeEditor({ text, filePath = null, cursor = [0, 0], selection = null, 
 }
 
 function setup({ editor, settings = {}, symbols = null, symbolsError = null, bridge = undefined, deps = {} } = {}) {
-  const log = { open: 0, runs: [], notes: [], dispatched: [] };
+  const log = { open: 0, runs: [], notes: [], notices: [], dispatched: [] };
   const service = { open: async () => { log.open++; }, run: async (cmds) => { log.runs.push(cmds); return true; } };
-  const notifications = new Proxy({}, { get: (_, kind) => (msg) => log.notes.push([kind, msg]) });
+  const notifications = new Proxy({}, {
+    get: (_, kind) => (msg, options) => {
+      log.notes.push([kind, msg]);
+      const notice = { options, dismissed: false, isDismissed() { return this.dismissed; }, dismiss() { this.dismissed = true; } };
+      log.notices.push(notice);
+      return notice;
+    },
+  });
   const values = { "repl.juliaPath": "", "repl.threads": "", "repl.environment": "", "repl.flags": "", "repl.sendVia": "service", "repl.bracketedPaste": false, "repl.workspace": true, ...settings };
   const repl = new ReplController({
     setting: (k) => values[k],
@@ -146,6 +153,75 @@ describe("ReplController: Run All Above / Below and Restart REPL", () => {
     expect(await repl.restartRepl()).toBe(false);
     expect(log.runs.length).toBe(1);
     expect(log.notes[0][0]).toBe("addWarning");
+  });
+});
+
+describe("ReplController: a REPL whose helper never connected", () => {
+  // Started with the helper (expectsHelper), which never connected: Julia may not be running at all.
+  const missingHelper = (over = {}) => ({
+    source: null,
+    typeAnyway: false,
+    prepare: async () => ({ loadFile: "/tmp/ws.jl" }),
+    expectsHelper: () => true,
+    canEval: () => false,
+    whenConnected: async () => null,
+    onDidDisconnect: () => ({ dispose() {} }),
+    ...over,
+  });
+  const editor = fakeEditor({ text: "using Oscar\nx = 1", cursor: [0, 0], selection: [[0, 0], [0, 11]] });
+  const button = (log, text) => log.notices[log.notices.length - 1].options.buttons.find((b) => b.text === text);
+
+  it("asks instead of typing the code into what may be a shell", async () => {
+    const { repl, log } = setup({ editor, bridge: missingHelper() });
+    await repl.openRepl(editor);
+    expect(await repl.sendSelectionOrDefinition()).toBe(false);
+    expect(log.runs).toEqual([["julia -L /tmp/ws.jl"]]); // the start command only
+    expect(log.notes[0][0]).toBe("addWarning");
+    expect(log.notes[0][1]).toMatch(/did not connect/);
+    expect(log.notices[0].options.buttons.map((b) => b.text)).toEqual(["Start a new REPL", "Type into the terminal anyway"]);
+    await repl.sendSelectionOrDefinition(); // still unanswered: not asked twice
+    expect(log.notices.length).toBe(1);
+  });
+
+  it("starts a new REPL when asked to", async () => {
+    const { repl, log } = setup({ editor, bridge: missingHelper() });
+    await repl.openRepl(editor);
+    await repl.sendSelectionOrDefinition();
+    button(log, "Start a new REPL").onDidClick();
+    await new Promise((r) => setImmediate(r));
+    expect(log.notices[0].dismissed).toBe(true);
+    expect(log.open).toBe(2);
+    expect(log.runs).toEqual([["julia -L /tmp/ws.jl"], ["julia -L /tmp/ws.jl"]]);
+  });
+
+  it("types the code after all when asked to, and from then on without asking", async () => {
+    const bridge = missingHelper();
+    const { repl, log } = setup({ editor, bridge });
+    await repl.openRepl(editor);
+    await repl.sendSelectionOrDefinition();
+    button(log, "Type into the terminal anyway").onDidClick();
+    await new Promise((r) => setImmediate(r));
+    expect(bridge.typeAnyway).toBe(true);
+    expect(log.runs[1]).toEqual(["using Oscar"]);
+    await repl.runInMain("x = 2");
+    expect(log.runs[2]).toEqual(["x = 2"]);
+    expect(log.notices.length).toBe(1);
+  });
+
+  it("restarts by opening a new REPL rather than typing exit() into the shell", async () => {
+    const { repl, log } = setup({ editor, bridge: missingHelper() });
+    await repl.openRepl(editor);
+    expect(await repl.restartRepl()).toBe(true);
+    expect(log.open).toBe(2);
+    expect(log.runs).toEqual([["julia -L /tmp/ws.jl"], ["julia -L /tmp/ws.jl"]]);
+  });
+
+  it("types as before when the REPL was started without the helper", async () => {
+    const { repl, log } = setup({ editor, bridge: missingHelper({ expectsHelper: () => false }) });
+    await repl.openRepl(editor);
+    await repl.sendSelectionOrDefinition();
+    expect(log.runs[1]).toEqual(["using Oscar"]);
+    expect(log.notes).toEqual([]);
   });
 });
 

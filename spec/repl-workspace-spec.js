@@ -498,6 +498,17 @@ describe("ReplBridge", () => {
       });
     });
 
+    it("knows whether its REPL was started with the helper, and forgets 'type anyway' for a new one", async () => {
+      expect(bridge.expectsHelper()).toBe(false);
+      await bridge.prepare();
+      expect(bridge.expectsHelper()).toBe(true);
+      bridge.typeAnyway = true;
+      await bridge.prepare();
+      expect(bridge.typeAnyway).toBe(false);
+      bridge.dispose();
+      expect(bridge.expectsHelper()).toBe(false);
+    });
+
     it("cannot hand over code without a connected helper", async () => {
       await bridge.prepare();
       let error = null;

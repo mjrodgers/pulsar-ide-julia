@@ -294,8 +294,10 @@ does not matter which terminal tab was used last (the terminal package types int
 * when the REPL is waiting at its prompt, shows the result like the REPL does (nothing if the code ends with `;`) and
   draws the prompt again. While the REPL is busy the code waits for its turn and the result is not shown.
 
-The first send after opening a REPL waits until Julia has started and the helper has connected (up to 20 seconds; after
-that, or if the helper cannot load, code is typed in as before). When that REPL exits, the next send starts a new one. If the REPL does not answer a send in time, you get a warning and the code runs when the REPL is free. Turn it off with **REPL → Run sent code in its module**.
+The first send after opening a REPL waits until Julia has started and the helper has connected (up to 20 seconds). If
+it does not connect, nothing is typed: Julia may not have started (your shell may have asked something first, or
+`julia` was not found), and the code would go to the shell. You are asked instead, with **Start a new REPL** or, for a
+Julia that is running without its helper (older than 1.9, say), **Type into the terminal anyway** for that REPL. When that REPL exits, the next send starts a new one. If the REPL does not answer a send in time, you get a warning and the code runs when the REPL is free. Turn it off with **REPL → Run sent code in its module**.
 This is separate from the Workspace pane's module menu, which only chooses what the pane lists. "Send file" still runs
 `include(file)` in `Main`.
 
