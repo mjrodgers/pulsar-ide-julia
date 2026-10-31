@@ -160,6 +160,8 @@ describe("ModuleFollower", () => {
     expect(paths).toEqual([]);
     active = false;
     workspace.activate(editor);
+    editor.moveTo(3, 0);
+    expect(follower.timer).toBe(null); // cursor moves cost nothing while not following
     await new Promise((r) => setTimeout(r, 30));
     expect(paths).toEqual([]);
     expect(fetches).toBe(0);

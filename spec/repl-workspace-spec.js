@@ -333,6 +333,8 @@ describe("ModuleChooser: choosing the module of a REPL", () => {
     server.helper.moduleNames = ["Main", "Main.Fresh"];
     await chooser.followTo(["Fresh"]);
     expect(server.helper.count("modules")).toBeGreaterThan(before);
+    // ...and has it look again, rather than answer from the list it remembers
+    expect(server.helper.requests.filter((r) => r.op === "modules").pop().arg).toBe("fresh");
     await until(() => shown() === "Main.Fresh", "fresh module");
   });
 

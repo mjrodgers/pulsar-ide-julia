@@ -251,6 +251,23 @@ end
     @test timedwait(() -> istaskdone(t), 10.0) == :ok
 end
 
+@testset "the module list is remembered" begin
+    # (invokelatest, as the helper is called: on Julia 1.12+ this code does not see modules defined after it started)
+    latest(f, args...; kw...) = Base.invokelatest(f, args...; kw...)
+    W.modules_cache[] = nothing
+    listed = latest(W.module_list)
+    @test "Main.TestOuter.TestInner" in listed
+    @test latest(W.module_list) === listed             # nothing changed: the same list, not looked up again
+    Core.eval(Main.TestOuter, :(module PulsarCachedLater end))
+    @test latest(W.module_list) === listed             # a module inside another one: not noticed...
+    @test "Main.TestOuter.PulsarCachedLater" in latest(W.module_list; fresh = true)   # ...until asked to look again
+    Core.eval(Main, :(module PulsarCachedTop end))     # a new name in Main
+    @test "Main.PulsarCachedTop" in latest(W.module_list)
+    io = IOBuffer()
+    latest(W.inspect, io, 1, "modules", "fresh")
+    @test occursin("\"Main.PulsarCachedTop\"", String(take!(io)))
+end
+
 @testset "watch expressions" begin
     io = IOBuffer()
     W.inspect(io, 1, "ls", "Main")

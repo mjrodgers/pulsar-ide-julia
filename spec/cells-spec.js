@@ -71,6 +71,18 @@ describe("cell separators", () => {
     expect(cells.rows(editors[0])).toEqual([1]);
   });
 
+  it("leaves the decorations alone when no marker line moved", () => {
+    const layer = editors[0].layers[0];
+    let clears = 0;
+    const clear = layer.clear;
+    layer.clear = () => { clears++; clear(); };
+    editors[0].setText("## setup\nx = 2\n\n# %% next\ny = 2\n#--- third\n#= not a marker =#"); // same marker rows
+    expect(clears).toBe(0);
+    editors[0].setText("## setup\n\nx = 2\n\n# %% next");
+    expect(clears).toBe(1);
+    expect(cells.rows(editors[0])).toEqual([4]);
+  });
+
   it("lets go of closed editors", () => {
     editors[0].destroy();
     expect(editors[0].layers[0].destroyed).toBe(true);

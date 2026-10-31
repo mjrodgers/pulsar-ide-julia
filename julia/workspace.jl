@@ -9,6 +9,7 @@
 # Protocol: one request per line, tab separated: `<id>\t<op>\t<argument>`
 #   ls <module path>    the variables of a module ("" or "Main" for Main); also makes it the watched module
 #   modules             the paths of the loaded modules reachable from Main: {"id":N,"ok":true,"names":["Main","Main.Foo",...]}
+#                       (remembered until a package is loaded or Main gains or loses a name; `modules fresh` looks again)
 #   children <ref>      the fields / elements / entries of a value listed earlier (refs die at the next `ls`)
 #   watch <expression>  evaluate a watch expression in the watched module: one item, expandable like the others; an
 #                       error (`ok: false`) when it fails
@@ -284,6 +285,23 @@ function all_modules()
     return vcat(["Main"], sort!(found[2:end]))
 end
 
+# all_modules() looks at every name of every module (tens of thousands with a big package loaded), and Pulsar asks
+# after every evaluation, so the list is kept until something that usually changes it does: a package is loaded, or
+# Main gains or loses a name (a module defined at the prompt). A module defined inside another one after that is found
+# with `fresh` (Pulsar asks so when it looks for a module the list does not have).
+const modules_cache = Ref{Any}(nothing)   # (key, list)
+
+modules_key() = (length(Base.loaded_modules_array()), length(names(Main; all = true, imported = true)))
+
+function module_list(; fresh::Bool = false)
+    key = modules_key()
+    cached = modules_cache[]
+    !fresh && cached !== nothing && cached[1] == key && return cached[2]
+    list = all_modules()
+    modules_cache[] = (key, list)
+    return list
+end
+
 # --- JSON, written by hand ------------------------------------------------------------------------
 function jstring(io::IO, s::AbstractString)
     print(io, '"')
@@ -416,7 +434,7 @@ function inspect(sock, id::Integer, op::AbstractString, arg::AbstractString)
             items, _ = child_items(refs[ref])
             send(sock, reply(id, items))
         elseif op == "modules"
-            send(sock, reply_names(id, all_modules()))
+            send(sock, reply_names(id, module_list(; fresh = strip(arg) == "fresh")))
         elseif op == "watch"
             value = try
                 Base.invokelatest(watch_value, arg)

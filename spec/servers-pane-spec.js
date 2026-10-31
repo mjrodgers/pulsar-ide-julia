@@ -116,6 +116,21 @@ describe("ServersPane", () => {
     expect(pane.summary.textContent).toMatch(/not available/);
   });
 
+  it("has the URI lib/main.js opens it with (main.js does not load this file until then)", () => {
+    expect(require("../lib/server/servers-pane").URI).toBe("atom://pulsar-ide-julia/language-servers");
+  });
+
+  it("does not read the processes while it cannot be seen", async () => {
+    make({ interval: 5 });
+    await until(() => samples.length >= 1, "first refresh");
+    pane.element.offsetParent = null; // what a hidden dock or a tab in the background gives
+    const count = samples.length;
+    await new Promise((r) => realTimeout(r, 40));
+    expect(samples.length).toBeLessThanOrEqual(count + 1);
+    pane.element.offsetParent = {};
+    await until(() => samples.length >= count + 2, "refreshing again when shown");
+  });
+
   it("stops refreshing once destroyed", async () => {
     make({ interval: 5 });
     await until(() => samples.length >= 2, "periodic refresh");

@@ -84,13 +84,20 @@ describe("inline results", () => {
     expect(element(1).querySelector(".result-text").textContent).toBe("UndefVarError: `q` not defined  (line 3)");
   });
 
-  it("shows images, and opens them in a tab on a click", () => {
+  it("shows images, and opens them in a tab on a click", async () => {
     results.begin(1, editor, [[0, 0], [0, 5]]);
+    let reads = 0;
+    const read = results.readFile;
+    results.readFile = (file) => { reads++; return read(file); };
     results.report({ id: 1, ms: 1, kind: "image", mime: "image/png", file: "/tmp/result-1.png", text: "Plot{...}" });
+    await new Promise((r) => setImmediate(r));
     const img = element().querySelector("img");
     expect(img.getAttribute("src")).toBe(`data:image/png;base64,${Buffer.from("data of /tmp/result-1.png").toString("base64")}`);
     img.click();
     expect(opened).toEqual(["/tmp/result-1.png"]);
+    element().querySelector(".result-header").click(); // drawing again does not read the file again
+    expect(element().querySelector("img")).not.toBe(null);
+    expect(reads).toBe(1);
   });
 
   it("replaces the result of code ending on the same line, and goes away when the code is edited", () => {
