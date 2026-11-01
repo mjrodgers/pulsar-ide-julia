@@ -18,17 +18,21 @@ atom-text-editor .highlight.pulsar-ide-julia-sent .region {
   .toolbar {
     display: flex;
     align-items: center;
-    gap: @component-padding / 2;
-    padding: @component-padding / 2 @component-padding;
+    gap: (@component-padding / 2);
+    padding: (@component-padding / 2) @component-padding;
     border-bottom: 1px solid @base-border-color;
     .summary { flex: 1; color: @text-color-subtle; }
   }
 
-  .servers { padding: @component-padding / 2 0; }
+  .servers { padding: (@component-padding / 2) 0; min-width: max-content; }
 
+  // Each row is its own grid, so every column needs the same size in every
+  // row: fixed widths in rem (the same in the smaller header row), and a fixed
+  // width for the buttons too (an empty "auto" column in the header would
+  // shrink to nothing and shift the others).
   .row {
     display: grid;
-    grid-template-columns: minmax(8em, 2fr) 6em 5em 6em 3.5em auto;
+    grid-template-columns: minmax(6rem, 1fr) 5.5rem 4.5rem 5.5rem 3rem 8.5rem;
     gap: @component-padding;
     align-items: center;
     padding: 2px @component-padding;
@@ -36,7 +40,7 @@ atom-text-editor .highlight.pulsar-ide-julia-sent .region {
     .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .actions { display: flex; gap: 4px; justify-content: flex-end; }
   }
-  .row.header { color: @text-color-subtle; font-size: 0.9em; }
+  .row.header { color: @text-color-subtle; > * { font-size: 0.9em; } }
   .row.server:hover { background: @background-color-highlight; }
   .row.running .status { color: @text-color-success; }
   .row.starting .status, .row.busy .status { color: @text-color-warning; }
