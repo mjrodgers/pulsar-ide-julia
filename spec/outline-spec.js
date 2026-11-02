@@ -379,3 +379,12 @@ describe("symbolsToEntries (Go to Symbol)", () => {
     expect(entry.range).toEqual(new R(new P(10, 9), new P(10, 14)));
   });
 });
+
+describe("describeOutline", () => {
+  const { describeOutline } = require("../lib/outline");
+  it("indents the outline's labels, for the symbol dump", () => {
+    const outline = { outlineTrees: [{ plainText: "module M", children: [{ plainText: "f(x)", children: [] }] }] };
+    expect(describeOutline(outline)).toBe("module M\n  f(x)");
+    expect(describeOutline({ outlineTrees: [] })).toBe("");
+  });
+});
