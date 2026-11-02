@@ -123,12 +123,24 @@ describe("ServersPane", () => {
   it("does not read the processes while it cannot be seen", async () => {
     make({ interval: 5 });
     await until(() => samples.length >= 1, "first refresh");
-    pane.element.offsetParent = null; // what a hidden dock or a tab in the background gives
+    pane.element.offsetParent = null; // what a tab in the background gives
     const count = samples.length;
     await new Promise((r) => realTimeout(r, 40));
     expect(samples.length).toBeLessThanOrEqual(count + 1);
     pane.element.offsetParent = {};
     await until(() => samples.length >= count + 2, "refreshing again when shown");
+  });
+
+  it("does not read the processes while its dock is closed", async () => {
+    let open = true;
+    make({ interval: 5, inOpenDock: () => open });
+    await until(() => samples.length >= 1, "first refresh");
+    open = false; // a closed dock keeps the pane laid out, so offsetParent alone does not show it
+    const count = samples.length;
+    await new Promise((r) => realTimeout(r, 40));
+    expect(samples.length).toBeLessThanOrEqual(count + 1);
+    open = true;
+    await until(() => samples.length >= count + 2, "refreshing again when the dock opens");
   });
 
   it("stops refreshing once destroyed", async () => {
