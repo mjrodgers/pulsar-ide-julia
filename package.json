@@ -516,7 +516,12 @@
     },
     "debug-adapter": {
       "versions": {
-        "0.1.0": "provideDebugAdapter"
+        "0.2.0": "provideDebugAdapter"
+      }
+    },
+    "live-variables": {
+      "versions": {
+        "0.1.0": "provideLiveVariables"
       }
     }
   }

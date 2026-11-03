@@ -224,8 +224,9 @@ use the REPL commands. To bind keys, add for example to your `keymap.cson`:
 **Experimental, and not yet tested against a real DebugAdapter.jl** (see "What to check first" below).
 
 Breakpoints, stepping, the current-line marker and the **Workspace** and **Debug Output** panes come from the
-[`pulsar-ide-debugger`](https://github.com/mjrodgers/pulsar-ide-debugger) package, which this package supplies with
-Julia's debugger through the `debug-adapter` service. Install both:
+[`pulsar-ide-debugger`](https://github.com/mjrodgers/pulsar-ide-debugger) package. This package supplies it with
+Julia's debugger (through the `debug-adapter` service) and with the REPL's variables (through `live-variables`).
+Install both:
 
 ```
 ppm install pulsar-ide-debugger
@@ -244,13 +245,27 @@ In a Julia file: `F9` toggles a breakpoint (or click the gutter left of the line
 default; the binding only applies in editors the debugger can handle and in its panes, and you can rebind it.
 
 This package starts Julia for the debugger (after Pulsar has loaded your shell's `PATH`, so `julia` is found as in a
-terminal) and builds the `launch` request from the **Debugger** settings: the Julia executable, environment, threads
-and flags, whether to stop on entry, the script's arguments, compiled mode and which modules to run compiled, which
-exception filters to enable (default `error`: stop on uncaught exceptions; `throw` stops on every exception; empty
-never stops), and extra JSON to merge into the `launch` request. The request follows DebugAdapter.jl's
-`JuliaLaunchArguments` (`program`, `stopOnEntry`, `cwd`, `env`, `project`, `args`, `code`, `compiledMode`,
-`compiledModulesOrFunctions`, `noDebug`); only `program` and `stopOnEntry` are always sent, the rest only when set.
-Whether the panes open by themselves is a `pulsar-ide-debugger` setting now (values set here are moved over).
+terminal) with the Julia executable, environment, threads and flags from the **Debugger** settings, and turns on the
+exception filters set there (default `error`: stop on uncaught exceptions; `throw` stops on every exception; empty
+never stops). For **Debug File** it builds the `launch` request from the other **Debugger** settings: whether to stop
+on entry, the script's arguments, compiled mode and which modules to run compiled, and extra JSON to merge into the
+request. The request follows DebugAdapter.jl's `JuliaLaunchArguments` (`program`, `stopOnEntry`, `cwd`, `env`,
+`project`, `args`, `code`, `compiledMode`, `compiledModulesOrFunctions`, `noDebug`); only `program` and `stopOnEntry`
+are always sent, the rest only when set. Whether the panes open by themselves is a `pulsar-ide-debugger` setting now
+(values set here are moved over).
+
+To keep several ways of running a program, put them in `.vscode/launch.json` in the project folder (the file VS Code
+uses) and start them with **Debug Configuration…** from pulsar-ide-debugger. A Julia configuration has `"type":
+"julia"` and the launch arguments above, as written; the settings for stop on entry, arguments and compiled mode do
+not apply to it:
+
+```jsonc
+{
+  "configurations": [
+    { "type": "julia", "request": "launch", "name": "Run the tests", "program": "${workspaceFolder}/test/runtests.jl" }
+  ]
+}
+```
 
 ### What to check first
 

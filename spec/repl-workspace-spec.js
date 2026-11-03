@@ -8,7 +8,7 @@ const { ReplWorkspaceSource } = require("../lib/workspace/repl-source");
 const { ReplBridge, bootstrapSource } = require("../lib/workspace/repl-bridge");
 const { FOLLOW } = require("../lib/workspace/module-follow");
 const { ModuleChooser } = require("../lib/workspace/module-chooser");
-const { createDebugAdapterProvider } = require("../lib/debug/provider");
+const { createLiveVariablesProvider } = require("../lib/debug/provider");
 
 const until = async (predicate, what = "condition", ms = 3000) => {
   const t0 = Date.now();
@@ -45,6 +45,30 @@ describe("ReplWorkspaceSource (against a fake helper)", () => {
     expect(ctx.items[1].ref).toBeGreaterThan(0);
     expect(source.state.status).toBe("live");
     expect(server.helper.requests[0]).toEqual({ id: 1, op: "ls", arg: "Main" });
+  });
+
+  it("offers the listing to pulsar-ide-debugger with DAP's field names (live-variables)", async () => {
+    await open();
+    expect(source.name).toBe("Julia REPL");
+    let changes = 0;
+    const sub = source.onDidChangeState(() => changes++);
+    await until(() => source.state.contexts.length === 1, "first listing");
+    const state = source.getState();
+    expect(state.busy).toBe(false);
+    expect(state.scopes.length).toBe(1);
+    expect(state.scopes[0].name).toBe("Main");
+    expect(state.scopes[0].variablesReference).toBe(0);
+    expect(state.scopes[0].variables[0]).toEqual({ name: "x", value: "42", type: "Int64", variablesReference: 0 });
+    const v = state.scopes[0].variables[1];
+    expect(v.variablesReference).toBeGreaterThan(0);
+    expect(source.getState().scopes).toBe(state.scopes); // the same until the module is read again
+    expect((await source.getVariables(v.variablesReference)).map((k) => [k.name, k.value, k.variablesReference])).toEqual([["[1]", "1", 0], ["[2]", "2", 0], ["[3]", "3", 0]]);
+    expect(changes).toBeGreaterThan(0);
+    sub.dispose();
+    let destroyed = 0;
+    source.onDidDestroy(() => destroyed++);
+    source.close();
+    expect(destroyed).toBe(1);
   });
 
   it("loads children by ref", async () => {
@@ -273,8 +297,8 @@ describe("ModuleChooser: choosing the module of a REPL", () => {
   });
 
   it("gives the source the pane's menu: Follow editor and the modules", async () => {
-    expect(source.choice).toBe("Main");
-    expect(await source.choices()).toEqual([
+    expect(source.getChoice()).toBe("Main");
+    expect(await source.getChoices()).toEqual([
       { value: FOLLOW, label: "Follow editor" },
       { value: "Main", label: "Main" },
       { value: "Main.Base", label: "Main.Base" },
@@ -288,7 +312,7 @@ describe("ModuleChooser: choosing the module of a REPL", () => {
     await until(() => shown() === "Main.Foo", "new module");
     expect(ls()).toEqual(["Main", "Main.Foo"]);
     expect(chosen).toEqual(["Main.Foo"]);
-    expect(source.choice).toBe("Main.Foo");
+    expect(source.getChoice()).toBe("Main.Foo");
   });
 
   it("restoring a saved choice switches the module without announcing it", async () => {
@@ -307,7 +331,7 @@ describe("ModuleChooser: choosing the module of a REPL", () => {
 
   it("keeps a chosen module in the menu even if the REPL does not list it", async () => {
     chooser.setChoice("Main.NotYet");
-    expect((await source.choices()).map((c) => c.value)).toContain("Main.NotYet");
+    expect((await source.getChoices()).map((c) => c.value)).toContain("Main.NotYet");
   });
 
   it("tells the pane to redraw when the choice changes", () => {
@@ -315,7 +339,7 @@ describe("ModuleChooser: choosing the module of a REPL", () => {
     source.on("state", () => states++);
     chooser.setChoice(FOLLOW);
     expect(states).toBeGreaterThan(0);
-    expect(source.choice).toBe(FOLLOW);
+    expect(source.getChoice()).toBe(FOLLOW);
   });
 
   it("follows the editor to the deepest module that exists", async () => {
@@ -582,7 +606,7 @@ describe("ReplBridge", () => {
   });
 });
 
-describe("the debug adapter provider's workspace source", () => {
+describe("the live-variables provider", () => {
   // A ReplBridge as the provider sees it.
   const fakeBridge = () => {
     const bridge = new EventEmitter();
@@ -600,37 +624,34 @@ describe("the debug adapter provider's workspace source", () => {
     setModule(m) { this.module = m; return Promise.resolve(); },
   });
 
-  it("offers the REPL when it connects and withdraws it when it goes away", () => {
+  it("offers each REPL when it connects, and stops when disposed", () => {
     const bridge = fakeBridge();
-    const provider = createDebugAdapterProvider({ setting: () => undefined, replBridge: bridge, chooser: new ModuleChooser() });
+    const provider = createLiveVariablesProvider({ replBridge: bridge, chooser: new ModuleChooser() });
+    expect(provider.name).toBe("Julia");
+    expect(provider.grammarScopes).toEqual(["source.julia"]);
     const seen = [];
-    const sub = provider.observeWorkspaceSource((s) => seen.push(s));
+    const sub = provider.observeSources((s) => seen.push(s));
     const repl = replSource();
     bridge.connect(repl);
     bridge.disconnect();
-    expect(seen).toEqual([repl, null]);
+    expect(seen).toEqual([repl]); // the source says itself when it goes (onDidDestroy)
     sub.dispose();
     bridge.connect(replSource());
-    expect(seen.length).toBe(2);
+    expect(seen.length).toBe(1);
   });
 
   it("offers a REPL that is already connected, with the module menu", async () => {
     const bridge = fakeBridge();
     const repl = replSource();
     bridge.source = repl;
-    const provider = createDebugAdapterProvider({ setting: () => undefined, replBridge: bridge, chooser: new ModuleChooser({ choice: "Main.Foo" }) });
+    const provider = createLiveVariablesProvider({ replBridge: bridge, chooser: new ModuleChooser({ choice: "Main.Foo" }) });
     const seen = [];
-    provider.observeWorkspaceSource((s) => seen.push(s));
+    provider.observeSources((s) => seen.push(s));
     expect(seen).toEqual([repl]);
-    expect(repl.choice).toBe("Main.Foo");
+    expect(repl.getChoice()).toBe("Main.Foo");
     expect(repl.module).toBe("Main.Foo");
-    expect((await repl.choices()).map((c) => c.label)).toEqual(["Follow editor", "Main", "Main.Foo"]);
+    expect((await repl.getChoices()).map((c) => c.label)).toEqual(["Follow editor", "Main", "Main.Foo"]);
   });
 
-  it("offers nothing without a REPL bridge", () => {
-    const provider = createDebugAdapterProvider({ setting: () => undefined });
-    const seen = [];
-    provider.observeWorkspaceSource((s) => seen.push(s)).dispose();
-    expect(seen).toEqual([]);
-  });
+
 });

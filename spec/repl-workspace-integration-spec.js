@@ -1,6 +1,6 @@
 // The REPL feeding the Workspace pane inside Pulsar. A fake `terminal` service captures the command it is asked
 // to run, and a socket client speaking julia/workspace.jl's protocol stands in for the Julia process. The pane is
-// drawn by pulsar-ide-debugger; here we check what this package hands it through the debug-adapter service.
+// drawn by pulsar-ide-debugger; here we check what this package hands it through the live-variables service.
 const fs = require("fs");
 const net = require("net");
 const path = require("path");
@@ -37,7 +37,7 @@ describe("REPL variables for the Workspace pane", () => {
     atom.config.set("pulsar-ide-julia.repl.workspace", true);
     // What pulsar-ide-debugger would do with the service.
     offered = [];
-    subscription = client.provideDebugAdapter().observeWorkspaceSource((source) => offered.push(source));
+    subscription = client.provideLiveVariables().observeSources((source) => offered.push(source));
   }));
 
   afterEach(() => {
@@ -78,7 +78,7 @@ describe("REPL variables for the Workspace pane", () => {
     const helper = new FakeHelper(socket);
     await waitUntil(current, "the REPL to be offered to the Workspace pane");
     const source = current();
-    const choices = await source.choices();
+    const choices = await source.getChoices();
     expect(choices.map((c) => c.label)).toEqual(["Follow editor", "Main", "Main.Base", "Main.Foo", "Main.Foo.Bar"]);
 
     source.choose("Main.Foo"); // what picking it in the pane's menu does

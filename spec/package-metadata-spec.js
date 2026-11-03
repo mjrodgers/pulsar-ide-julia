@@ -13,9 +13,11 @@ const readJson = (...parts) => {
 };
 
 describe("package metadata", () => {
-  it("provides the debug-adapter service, and leaves the debugger's commands to pulsar-ide-debugger", () => {
+  it("provides the debug-adapter and live-variables services, and leaves the debugger's commands to pulsar-ide-debugger", () => {
     const pkg = readJson("package.json");
-    expect(pkg.providedServices["debug-adapter"].versions["0.1.0"]).toBe("provideDebugAdapter");
+    // Only one version of debug-adapter: pulsar-ide-debugger would otherwise register the adapter once per version.
+    expect(pkg.providedServices["debug-adapter"].versions).toEqual({ "0.2.0": "provideDebugAdapter" });
+    expect(pkg.providedServices["live-variables"].versions).toEqual({ "0.1.0": "provideLiveVariables" });
     const activation = pkg.activationCommands["atom-workspace"];
     expect(activation.filter((c) => /:(debug-|toggle-breakpoint|clear-breakpoints|open-workspace)/.test(c))).toEqual([]);
   });
@@ -63,8 +65,8 @@ describe("package metadata", () => {
     const schema = readJson("package.json").configSchema;
     const read = new Set();
     const provider = createDebugAdapterProvider({ setting: (key) => { read.add(key); return undefined; } });
-    provider.launchRequest({ file: "/work/a.jl" });
-    provider.exceptionFilters();
+    provider.configurationForFile({ file: "/work/a.jl" });
+    provider.defaultExceptionFilters();
     provider.explainFailure({ message: "x" });
     expect(read.size).toBeGreaterThan(5);
     for (const key of [...read, "repl.workspace"]) expect(schemaAt(schema, key) && "default" in schemaAt(schema, key) ? key : `${key} has no default`).toBe(key);
