@@ -38,3 +38,38 @@ describe("JETLS failure messages", () => {
     expect(explainCrash({ code: 1 }).description).not.toMatch(/printed/);
   });
 });
+
+describe("formatting failure messages", () => {
+  const { explainFormatFailure } = require("../lib/server/failures");
+  const jetlsError = (message, code = -32803) => Object.assign(new Error(message), { code });
+
+  it("says how to install the formatter JETLS could not find", () => {
+    const jlfmt = explainFormatFailure(jetlsError("`jlfmt` executable is not found on the `PATH`.Follow this [instruction](https://github.com/domluna/JuliaFormatter.jl#installation)\nto install the `jlfmt` app.\n"));
+    expect(jlfmt.kind).toBe("error");
+    expect(jlfmt.title).toBe("Julia: could not format, `jlfmt` is not installed");
+    expect(jlfmt.description).toContain('Pkg.Apps.add("JuliaFormatter")');
+    const runic = explainFormatFailure(jetlsError("`runic.bat` executable is not found on the `PATH`."));
+    expect(runic.title).toMatch(/`runic` is not installed/);
+    expect(runic.description).toContain('Pkg.Apps.add("Runic")');
+    const custom = explainFormatFailure(jetlsError("`myfmt` executable is not found on the `PATH`."));
+    expect(custom.description).toContain("myfmt");
+  });
+
+  it("explains a formatter that failed, usually on a syntax error", () => {
+    const plain = explainFormatFailure(jetlsError("Formatter returned an error. See server logs for details."));
+    expect(plain.kind).toBe("warning");
+    expect(plain.description).toMatch(/syntax error/);
+    expect(plain.description).not.toMatch(/2\.7\.0/);
+    const range = explainFormatFailure(jetlsError("Formatter returned an error. See server logs for details. Note that range formatting requires JuliaFormatter v2.7.0 or later."));
+    expect(range.description).toMatch(/version 2\.7\.0 or later/);
+  });
+
+  it("stays quiet for cancelled requests, and passes other errors on", () => {
+    expect(explainFormatFailure(jetlsError("cancelled", -32800))).toBe(null);
+    expect(explainFormatFailure(jetlsError("content modified", -32801))).toBe(null);
+    expect(explainFormatFailure(null)).toBe(null);
+    expect(explainFormatFailure(jetlsError("Custom formatter does not specify `executable`."))).toEqual({
+      kind: "error", title: "Julia: could not format", description: "Custom formatter does not specify `executable`.",
+    });
+  });
+});

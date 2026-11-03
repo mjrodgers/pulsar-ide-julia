@@ -112,7 +112,14 @@ JETLS formats with `runic` by default and finds it on the PATH it is given. This
 `<julia depot>/bin` (where `Pkg.Apps` installs `jetls`, `runic`, `jlfmt`) to the PATH of the server
 process, so it works even when Pulsar was started from the Dock and has no shell PATH. Install it with
 `julia -e 'using Pkg; Pkg.Apps.add("Runic")'`. The package provides range, whole-file and on-save formatting to
-`pulsar-code-format`; formatting on save is switched on in that package's settings (**Format On Save**). To use another formatter, set **Language server → Extra settings
+`pulsar-code-format`; formatting on save is switched on in that package's settings (**Format On Save**). If the
+formatter is not installed or cannot format the code (usually a syntax error), a notification says so; the code is
+left as it was.
+
+Runic always indents with 4 spaces. To keep the indentation of files that use another width, set **Language server →
+Formatter** to `JuliaFormatter` (install it with `julia -e 'using Pkg; Pkg.Apps.add("JuliaFormatter")'`; formatting
+a selection needs version 2.7.0 or later): without a `.JuliaFormatter.toml` in the project it uses the editor's tab
+length, which language-julia-redux detects from the file. To use another formatter, set **Language server → Extra settings
 (JSON)** to e.g. `{"formatter": {"custom": {"executable": "/path/to/formatter", "executable_range": "/path/to/formatter"}}}`
 (the executable reads Julia on stdin and writes the result to stdout; the range one also gets `--lines=START:END`).
 
