@@ -51,7 +51,8 @@
       "pulsar-ide-julia:run-test",
       "pulsar-ide-julia:show-macro-expansion",
       "pulsar-ide-julia:expand-all-macros",
-      "pulsar-ide-julia:show-inferred-types"
+      "pulsar-ide-julia:show-inferred-types",
+      "pulsar-ide-julia:install-debug-adapter"
     ]
   },
   "enhancedScopes": [
@@ -337,6 +338,13 @@
           "default": "",
           "description": "Empty: the project of the file being debugged. Or a folder, `@v1.12` or `@name`.",
           "order": 2
+        },
+        "adapterEnvironment": {
+          "title": "DebugAdapter environment",
+          "type": "string",
+          "default": "@pulsar-debugadapter",
+          "order": 2.5,
+          "description": "Where DebugAdapter.jl is installed: a shared environment (`@name`, in `~/.julia/environments`) or a folder. Keeping it out of your global environment (`@v1.12`) stops it from holding back your other packages. **Pulsar Ide Julia: Install Debug Adapter** installs or updates it there."
         },
         "threads": {
           "title": "Threads",

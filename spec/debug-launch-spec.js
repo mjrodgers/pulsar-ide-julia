@@ -16,22 +16,30 @@ describe("buildAdapterCommand", () => {
   it("runs the bootstrap in the file's project", () => {
     const { command, args } = buildAdapterCommand({ projectDir: "/work/Pkg", pipe });
     expect(command).toBe("julia");
-    expect(args).toEqual(["--project=/work/Pkg", "-e", BOOTSTRAP, pipe]);
+    expect(args).toEqual(["--project=/work/Pkg", "-e", BOOTSTRAP, pipe, "@pulsar-debugadapter"]);
   });
   it("omits --project when there is none", () => {
-    expect(buildAdapterCommand({ pipe }).args).toEqual(["-e", BOOTSTRAP, pipe]);
+    expect(buildAdapterCommand({ pipe }).args).toEqual(["-e", BOOTSTRAP, pipe, "@pulsar-debugadapter"]);
+  });
+  it("passes on where DebugAdapter is installed, expanding a folder", () => {
+    expect(buildAdapterCommand({ pipe, adapterEnvironment: "@dap" }).args.slice(-1)).toEqual(["@dap"]);
+    expect(buildAdapterCommand({ pipe, adapterEnvironment: "~/envs/dap", homedir: "/home/u" }).args.slice(-1)).toEqual(["/home/u/envs/dap"]);
+    expect(buildAdapterCommand({ pipe, adapterEnvironment: "" }).args.slice(-1)).toEqual(["@pulsar-debugadapter"]);
   });
   it("lets the setting override the project, threads, flags and Julia path", () => {
     const { command, args } = buildAdapterCommand({
       juliaPath: "~/bin/julia", threads: "auto", environment: "@v1.12", projectDir: "/work/Pkg", flags: "--color=yes -O1", pipe, homedir: "/home/u",
     });
     expect(command).toBe("/home/u/bin/julia");
-    expect(args).toEqual(["--threads=auto", "--project=@v1.12", "--color=yes", "-O1", "-e", BOOTSTRAP, pipe]);
+    expect(args).toEqual(["--threads=auto", "--project=@v1.12", "--color=yes", "-O1", "-e", BOOTSTRAP, pipe, "@pulsar-debugadapter"]);
   });
-  it("loads the adapter from the default environment", () => {
-    expect(BOOTSTRAP).toContain("import DebugAdapter");
+  it("puts DebugAdapter's environment on LOAD_PATH right after the project, then loads the adapter", () => {
+    const steps = BOOTSTRAP.split("; ");
+    const addEnvironment = steps.findIndex((s) => s.includes("insert!(LOAD_PATH, min(2, length(LOAD_PATH) + 1), ARGS[2])"));
+    expect(addEnvironment).toBeGreaterThan(-1);
+    expect(steps.findIndex((s) => s === "import DebugAdapter")).toBeGreaterThan(addEnvironment);
+    expect(BOOTSTRAP).toContain("Sockets.connect(ARGS[1])");
     expect(BOOTSTRAP).toContain("DebugSession(conn)");
-    expect(BOOTSTRAP).toContain("ARGS[1]");
   });
 });
 

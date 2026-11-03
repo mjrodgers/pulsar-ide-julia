@@ -239,12 +239,19 @@ Install both:
 ppm install pulsar-ide-debugger
 ```
 
-and install [DebugAdapter.jl](https://github.com/julia-vscode/DebugAdapter.jl) once in the default global environment
-(the adapter is found through Julia's normal `LOAD_PATH`; your program still runs in its own project):
+and install [DebugAdapter.jl](https://github.com/julia-vscode/DebugAdapter.jl) with **Pulsar Ide Julia: Install Debug
+Adapter** from the command palette (run it again later to update it), or in a terminal:
 
 ```
-julia -e 'using Pkg; Pkg.add("DebugAdapter")'
+julia --project=@pulsar-debugadapter -e 'using Pkg; Pkg.add("DebugAdapter")'
 ```
+
+It goes into an environment of its own, `@pulsar-debugadapter` (setting **Debugger → DebugAdapter environment**), not
+your global environment: packages in one environment must agree on the versions of the packages they share, and
+DebugAdapter needs particular versions of JuliaInterpreter and JSON, which would hold back Revise and others there.
+The debugger adds that environment to Julia's `LOAD_PATH` for the debugged program only, after the program's own
+project, so your program still runs with its own packages. If you installed DebugAdapter in the global environment
+before, it still works, but you can remove it there: `julia -e 'using Pkg; Pkg.rm("DebugAdapter")'`.
 
 In a Julia file: `F9` toggles a breakpoint (or click the gutter left of the line numbers), `Ctrl+F5` debugs the file,
 `F5` starts or continues, `F10` / `F11` / `Shift+F11` step over / in / out and `Shift+F5` stops. The commands are

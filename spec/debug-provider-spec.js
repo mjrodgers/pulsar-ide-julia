@@ -6,7 +6,7 @@ const { createDebugAdapterProvider } = require("../lib/debug/provider");
 const { explainLaunchFailure } = require("../lib/debug/adapter-process");
 
 const defaults = {
-  "debugger.juliaPath": "", "debugger.threads": "", "debugger.environment": "", "debugger.flags": "",
+  "debugger.juliaPath": "", "debugger.threads": "", "debugger.environment": "", "debugger.adapterEnvironment": "@pulsar-debugadapter", "debugger.flags": "",
   "debugger.stopOnEntry": false, "debugger.launchArgumentsJson": "", "debugger.exceptionFilters": ["error"],
   "debugger.programArguments": "", "debugger.compiledMode": false, "debugger.compiledModules": [],
 };
@@ -44,14 +44,14 @@ describe("Julia debug adapter provider", () => {
   });
 
   it("waits for the shell's PATH, then starts Julia with the debugger settings, next to the program", async () => {
-    make({ "debugger.juliaPath": "/opt/julia/bin/julia", "debugger.threads": "4", "debugger.environment": "@v1.12", "debugger.flags": "--color=no" });
+    make({ "debugger.juliaPath": "/opt/julia/bin/julia", "debugger.threads": "4", "debugger.environment": "@v1.12", "debugger.adapterEnvironment": "@dap", "debugger.flags": "--color=no" });
     const log = { append() {}, note() {} };
     const result = await provider.createAdapter({ type: "julia", request: "launch", program: "/work/a.jl" }, { log, projectPath: "/work" });
     expect(waited).toBe(1);
     expect(launches[0].file).toBe("/work/a.jl");
     expect(launches[0].log).toBe(log);
     expect(launches[0].env).toEqual({ PATH: "/from/shell" });
-    expect(launches[0].settings).toEqual({ juliaPath: "/opt/julia/bin/julia", threads: "4", environment: "@v1.12", flags: "--color=no" });
+    expect(launches[0].settings).toEqual({ juliaPath: "/opt/julia/bin/julia", threads: "4", environment: "@v1.12", adapterEnvironment: "@dap", flags: "--color=no" });
     expect(result.stream).toBe("the socket");
     expect(typeof result.process.kill).toBe("function");
   });
