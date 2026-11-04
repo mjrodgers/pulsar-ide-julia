@@ -9,10 +9,8 @@ using `@savetheclocktower/atom-languageclient`.
 
 ## Requirements
 
-* **A Julia grammar.** Install [language-julia-redux](https://github.com/mjrodgers/pulsar-language-julia), the
-  Tree-sitter grammar written alongside this package: highlighting, indentation, folding, docstrings as Markdown and
-  snippets. This package starts for any file whose grammar is `source.julia`, so the old `language-julia` works too;
-  if both are installed, disable `language-julia`.
+* **A Julia grammar.** Recommended: [language-julia-redux](https://github.com/mjrodgers/pulsar-language-julia). There is also [language-julia]().
+Really you just need to be able to recognize Julia files as `source.julia`.
 * **JETLS**, and Julia 1.12 or later to run it: see [Installing JETLS](#installing-jetls).
 
 ## Go to Symbol
@@ -26,11 +24,13 @@ Pulsar's built-in `symbols-view` package lists the symbols in a file, and this p
 * **Symbols View: Go To Declaration** (<kbd>ctrl-alt-down</kbd>, <kbd>cmd-alt-down</kbd>) jumps to the definition of
   the name under the cursor, and **Return From Declaration** (<kbd>ctrl-alt-up</kbd>, <kbd>cmd-alt-up</kbd>) goes back.
 
-Functions are listed with their argument list beside the name, so the methods of a function can be told apart; the
-**Outline and Go to Symbol** settings control this for both the outline and this list. While JETLS is running it is
-the only source of symbols. Before it has started, or if it is not running, the symbols
-come from the grammar instead. **Symbols View: Show Active Providers** shows which sources are available. (The
-community `symbols-view-redux` package was the prototype of today's built-in `symbols-view`; it is not needed.)
+Functions are listed with their argument list beside the name; the
+**Outline and Go to Symbol** settings control this for both the outline and this symbol list.
+While JETLS is running it is the only source of symbols.
+Before it has started, or if it is not running, the symbols
+come from the grammar package instead instead.
+**Symbols View: Show Active Providers** shows which sources are available.
+
 
 ## Develop
 
@@ -43,21 +43,16 @@ community `symbols-view-redux` package was the prototype of today's built-in `sy
 ## Settings and JETLS configuration
 
 The settings come in five groups: **Language server (JETLS)**, **Outline and Go to Symbol**, **REPL**, **Tests** and
-**Debugger** (the Julia side of debugging; see below). Settings saved
-by earlier versions under the old, ungrouped names are moved into their groups the first time the package starts.
+**Debugger**.
 
-Configuration reaches JETLS three ways (highest priority first):
+JETLS receives configuration options in three ways (highest priority first):
 
 1. `.JETLSConfig.toml` in the project root (read by JETLS itself; per root, committable).
-2. The **Language server** group: the package opts in to the fork's built-in `workspace/configuration` support
-   (`supportsWorkspaceConfiguration`, `getRootConfigurationKey`, `mapConfigurationObject`), so JETLS's request for
-   the `jetls` section is answered from this group, and only this group: changing a REPL or debugger setting does
-   not reach JETLS. The instantiate, analysis delay and formatter settings are sent only when they differ from
-   JETLS's defaults; **Extra settings (JSON)** is merged on top. These apply live.
+2. The **Language server** group of the package settings; the instantiate, analysis delay and formatter settings are sent only when they differ from
+   JETLS's defaults; **Extra settings (JSON)** is merged on top. These apply live. **Initialization options (JSON)** and the launch settings (path, Julia, threads, environment for scripts, connection,
+   extra Julia flags) are static: changing them offers a server restart.
 3. JETLS defaults.
 
-**Initialization options (JSON)** and the launch settings (path, Julia, threads, environment for scripts, connection,
-extra Julia flags) are static: changing them offers a server restart.
 
 ## Choosing the Julia version
 
@@ -67,19 +62,19 @@ extra Julia flags) are static: changing them offers a server restart.
 ## Several project folders
 
 The language client starts one JETLS server per project folder, when you first open a Julia file in it, and stops it
-when the folder's last Julia file closes. JETLS cannot serve several folders from one process, and each server loads
-its packages' dependencies itself, so a window with many package checkouts can hold several large processes.
-
-* **Pulsar Ide Julia: Show Language Servers** opens a pane listing every project folder with its server's state, process
-  id, memory (including processes the server started) and number of open Julia files, with buttons to restart, stop or
-  start each server, and to restart them all. It refreshes every few seconds while open.
-* **Pulsar Ide Julia: Restart Language Server For Project Folder** restarts only the server of the active file's folder.
-  A server loads the packages a project depends on once, so after editing a dependency checkout (another of your
-  folders, `dev`ed into this project's environment), restart the dependent project's server to analyze against the
-  new code.
+when the folder's last Julia file closes. JETLS cannot serve several folders from one process; each server loads
+its packages' dependencies independently, so a window with many package checkouts can hold several large processes.
 
 Each folder is analyzed in the environment of its own `Project.toml`. To have go-to-definition land in, and diagnostics
 reflect, your local checkouts of dependencies, `Pkg.develop` them into that environment.
+
+* **Pulsar Ide Julia: Show Language Servers** opens a pane listing every project folder with its server's state, process
+  id, memory (including processes the server started) and number of open Julia files, with options to restart, stop or
+  start each server, and to restart them all. It refreshes every few seconds while open.
+* **Pulsar Ide Julia: Restart Language Server For Project Folder** restarts only the server of the active file's folder.
+  A server only loads dependencies on startup, so after editing a dependency checkout (e.g. another of your
+  folders, `dev`ed into the project's environment), restart the dependent project's server to analyze against the
+  new code.
 
 ## Installing JETLS
 
