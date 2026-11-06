@@ -33,9 +33,13 @@ describe("buildAdapterCommand", () => {
     expect(command).toBe("/home/u/bin/julia");
     expect(args).toEqual(["--threads=auto", "--project=@v1.12", "--color=yes", "-O1", "-e", BOOTSTRAP, pipe, "@pulsar-debugadapter"]);
   });
-  it("puts DebugAdapter's environment on LOAD_PATH right after the project, then loads the adapter", () => {
+  it("adds DebugAdapter's environment at the end of LOAD_PATH, then loads the adapter", () => {
+    // At the end, so that the program's project and the global environment choose the versions of shared packages
+    // (Parsers, JSON, …), not the adapter's environment.
     const steps = BOOTSTRAP.split("; ");
-    const addEnvironment = steps.findIndex((s) => s.includes("insert!(LOAD_PATH, min(2, length(LOAD_PATH) + 1), ARGS[2])"));
+    const addEnvironment = steps.findIndex((s) => s.includes("push!(LOAD_PATH, ARGS[2])"));
+    expect(BOOTSTRAP).not.toContain("insert!(LOAD_PATH");
+    expect(BOOTSTRAP).not.toContain("pushfirst!(LOAD_PATH");
     expect(addEnvironment).toBeGreaterThan(-1);
     expect(steps.findIndex((s) => s === "import DebugAdapter")).toBeGreaterThan(addEnvironment);
     expect(BOOTSTRAP).toContain("Sockets.connect(ARGS[1])");

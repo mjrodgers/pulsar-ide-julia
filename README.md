@@ -244,8 +244,9 @@ julia --project=@pulsar-debugadapter -e 'using Pkg; Pkg.add("DebugAdapter")'
 It goes into an environment of its own, `@pulsar-debugadapter` (setting **Debugger → DebugAdapter environment**), not
 your global environment: packages in one environment must agree on the versions of the packages they share, and
 DebugAdapter needs particular versions of JuliaInterpreter and JSON, which would hold back Revise and others there.
-The debugger adds that environment to Julia's `LOAD_PATH` for the debugged program only, after the program's own
-project, so your program still runs with its own packages. If you installed DebugAdapter in the global environment
+The debugger adds that environment at the end of Julia's `LOAD_PATH`, for the debugged program only, so your program
+still runs with the packages (and versions) of its own project and of your global environment; the debugger's
+environment only supplies DebugAdapter itself, and whatever it needs that those do not have. If you installed DebugAdapter in the global environment
 before, it still works, but you can remove it there: `julia -e 'using Pkg; Pkg.rm("DebugAdapter")'`.
 
 In a Julia file: `F9` toggles a breakpoint (or click the gutter left of the line numbers), `Ctrl+F5` debugs the file,
