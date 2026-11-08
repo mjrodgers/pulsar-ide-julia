@@ -80,9 +80,12 @@ describe("instantiation failures", () => {
   it("offers to update a dependency the manifest holds at a version the project no longer allows", () => {
     // What happened with the Oscar branch: `]up` in the project fixed it.
     const actions = recoveryActions(OSCAR_REASON);
-    expect(actions.map((a) => a.id)).toEqual(["update-one", "update", "retry"]);
-    expect(actions[0].title).toBe("Update Hecke and retry");
-    expect(actions[0].code).toBe('using Pkg; Pkg.update("Hecke"); Pkg.instantiate()');
+    // Pkg names only the first package out of range (on another Oscar branch, AlgebraicSolving while AbstractAlgebra
+    // was out of range too), so updating everything comes first.
+    expect(actions.map((a) => a.id)).toEqual(["update", "update-one", "retry"]);
+    expect(actions[0].code).toBe("using Pkg; Pkg.update(); Pkg.instantiate()");
+    expect(actions[1].title).toBe("Update Hecke and retry");
+    expect(actions[1].code).toBe('using Pkg; Pkg.update("Hecke"); Pkg.instantiate()');
     expect(actions[2].code).toBeUndefined();
   });
 
@@ -105,6 +108,7 @@ describe("instantiation failures", () => {
     const text = describeFailure({ reason: OSCAR_REASON });
     expect(text).toContain("```\n  Resolving package versions...\nempty intersection between Hecke@0.41.0");
     expect(text).toContain("The environment has `Hecke` 0.41.0, but the project now needs 0.41.1 - 0.41");
+    expect(text).toContain("Pkg names only the first package it finds out of range");
     expect(text).toContain("**Update Hecke**");
     const noReason = describeFailure({ reason: "" });
     expect(noReason).toContain("developer console");

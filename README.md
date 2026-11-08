@@ -87,10 +87,11 @@ setting's Julia (or `julia` on your PATH), then restarts the folder's server:
   updates the registry, so this fixes a project that needs versions released since it was last updated, without
   upgrading anything else.
 * **Update all packages and retry**: `Pkg.update()`, which also upgrades every dependency (`]up`).
-* **Update *Package* and retry**, when the environment holds a dependency at a version the project no longer allows
-  (Pkg says "empty intersection between *Package*@… and project compatibility …", typically after switching to a branch
-  that raised a compat bound): `Pkg.update("Package")`. JETLS's resolve keeps the versions already in the manifest, so
-  it cannot fix this itself.
+* When the environment holds a dependency at a version the project no longer allows (Pkg says "empty intersection
+  between *Package*@… and project compatibility …", typically after switching branches), **Update all packages and
+  retry** comes first. JETLS's resolve keeps the versions already in the manifest, so it cannot fix this itself, and
+  Pkg names only the first package out of range; after a branch switch there are usually more. **Update *Package* and
+  retry** updates only the named one (`Pkg.update("Package")`).
 * **Use released *Package* and retry**, instead, when Pkg says that version is from a developed package, a git
   repository or a pin: `Pkg.free("Package")`, then update it. To keep your checkout, update it yourself (for example
   `git pull` in it) and choose **Retry**.
