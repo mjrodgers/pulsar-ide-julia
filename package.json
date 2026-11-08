@@ -170,6 +170,27 @@
             "type": "string"
           },
           "order": 11
+        },
+        "onEnvironmentChange": {
+          "title": "When a project's environment changes",
+          "type": "string",
+          "default": "ask",
+          "description": "When a folder's `Project.toml` changes while its server runs (for example after switching branches). JETLS keeps the environment it loaded until it restarts.",
+          "enum": [
+            {
+              "value": "ask",
+              "description": "Offer to restart the server"
+            },
+            {
+              "value": "restart",
+              "description": "Restart the server"
+            },
+            {
+              "value": "off",
+              "description": "Do nothing"
+            }
+          ],
+          "order": 12
         }
       }
     },

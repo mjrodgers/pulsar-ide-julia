@@ -76,6 +76,18 @@ reflect, your local checkouts of dependencies, `Pkg.develop` them into that envi
   folders, `dev`ed into the project's environment), restart the dependent project's server to analyze against the
   new code.
 
+### After switching branches
+
+JETLS checks a folder's environment once, when its server starts, and keeps what it loaded until the server restarts.
+When a folder's `Project.toml` (or that of a subfolder such as `test/`) changes while its server runs, typically after
+switching to a branch with different dependencies, the package offers to restart that server. Switching between
+branches with the same `Project.toml` (a working branch rebased on `main`) asks nothing, and neither does switching
+away and back before restarting. The setting **Language server → When a project's environment changes** can restart
+the server automatically instead, or turn this off.
+
+Manifests are not watched, since JETLS writes them itself when it instantiates. After running `]up` in a terminal,
+restart the folder's server yourself (**Restart Language Server For Project Folder**) so JETLS loads the new versions.
+
 ### When an environment cannot be instantiated
 
 When JETLS cannot resolve and instantiate a folder's environment (often after switching to a branch whose
