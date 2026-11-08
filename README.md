@@ -76,6 +76,29 @@ reflect, your local checkouts of dependencies, `Pkg.develop` them into that envi
   folders, `dev`ed into the project's environment), restart the dependent project's server to analyze against the
   new code.
 
+### When an environment cannot be instantiated
+
+When JETLS cannot resolve and instantiate a folder's environment (often after switching to a branch whose
+`Project.toml` needs newer dependencies), it analyzes the package as a script, with fewer diagnostics. The package then
+shows a notification with Pkg's reason and buttons to fix it; each runs Pkg in that environment with the **Julia path**
+setting's Julia (or `julia` on your PATH), then restarts the folder's server:
+
+* **Update registry and retry**: `Pkg.Registry.update(); Pkg.resolve(); Pkg.instantiate()`. JETLS's own resolve never
+  updates the registry, so this fixes a project that needs versions released since it was last updated, without
+  upgrading anything else.
+* **Update all packages and retry**: `Pkg.update()`, which also upgrades every dependency (`]up`).
+* **Update *Package* and retry**, when the environment holds a dependency at a version the project no longer allows
+  (Pkg says "empty intersection between *Package*@… and project compatibility …", typically after switching to a branch
+  that raised a compat bound): `Pkg.update("Package")`. JETLS's resolve keeps the versions already in the manifest, so
+  it cannot fix this itself.
+* **Use released *Package* and retry**, instead, when Pkg says that version is from a developed package, a git
+  repository or a pin: `Pkg.free("Package")`, then update it. To keep your checkout, update it yourself (for example
+  `git pull` in it) and choose **Retry**.
+* **Retry**: only restarts the server, after you have fixed the environment yourself.
+
+Nothing runs until you choose a button. If a command fails, the notification shows what Julia printed and the command
+to try in a terminal.
+
 ## Installing JETLS
 
 `jetls` is a Julia "app": a small launcher in `~/.julia/bin` that runs JETLS with the Julia that installed it.
